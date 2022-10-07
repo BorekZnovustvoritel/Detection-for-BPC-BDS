@@ -7,7 +7,7 @@ from functools import total_ordering
 import javalang
 import javalang.tree
 import pprint
-from typing import List, Union, Set
+from typing import List, Union, Set, Optional
 import re
 
 import definitions
@@ -52,50 +52,6 @@ class JavaEntity(ABC):
         pass
 
 
-# class JavaField:
-#     def __init__(self, java_field: javalang.tree.FieldDeclaration):
-#         #print(f"Field input type: {type(java_field)}")
-#         self.java_field = java_field
-#
-#     def __repr__(self):
-#         return f"< {self.__class__.__name__}: {self.__dict__}>"
-#
-#
-# class JavaMethodInvocation:
-#     def __init__(self, java_method_invocation: javalang.tree.MethodInvocation):
-#         self.java_method_invocation: javalang.tree.MethodInvocation = java_method_invocation
-#         self.arguments: List[javalang.tree.Expression] = java_method_invocation.arguments   # TODO: use my types
-#         self.method_name = java_method_invocation.member
-#
-#     def __repr__(self):
-#         return f"< {self.__class__.__name__}: {self.__dict__}>"
-#
-#
-# class JavaLocalVariable(JavaVariable):
-#     def __init__(self, java_variable: javalang.tree.VariableDeclarator):
-#         super().__init__(java_variable)
-#
-#     def __repr__(self):
-#         return f"< {self.__class__.__name__}: {self.__dict__}>"
-#
-#
-# class JavaAssignment:
-#     def __init__(self, java_assignment: javalang.tree.Assignment):
-#         self.java_assignment: javalang.tree.Assignment = java_assignment
-#         self.variable_name: str = java_assignment.expressionl.member
-#         self.value: javalang.tree.Expression = java_assignment.value    # TODO: use my types
-#
-#     def __repr__(self):
-#         return f"< {self.__class__.__name__}: {self.__dict__}>"
-#
-#
-# class JavaExpression:
-#     def __init__(self, java_statement: javalang.tree.StatementExpression):
-#         self.java_statement: javalang.tree.StatementExpression = java_statement
-#
-#     def __repr__(self):
-#         return f"< {self.__class__.__name__}: {self.__dict__}>"
-
 class JavaModifier(JavaEntity):
     def __init__(self, name: str):
         super().__init__()
@@ -108,13 +64,23 @@ class JavaModifier(JavaEntity):
             return Report(0, 10, self, other)
 
 
+class JavaStatementBlock(JavaEntity):
+    def __init__(self, statement: javalang.tree.Statement, method: JavaMethod, name: str):
+        super().__init__()
+        self.name: str = name
+        self.java_method: JavaMethod = method
+        self.statements: Set[javalang.tree.Statement] = set()
+
+    def compare(self, other: JavaStatementBlock) -> Report:
+        pass
+
+
 class JavaMethod(JavaEntity):
     def __init__(self, java_method: javalang.tree.MethodDeclaration, java_class: JavaClass):
         # self.java_method: javalang.tree.MethodDeclaration = java_method
         super().__init__()
         self.java_class: JavaClass = java_class
         # self.body_blocks: list[javalang.tree.Expression] = []
-        # self.local_variables: list[JavaVariable] = []
         self.return_type: JavaType = JavaType(getattr(java_method.return_type, "name", None), java_class)
         self.modifiers: List[JavaModifier] = [JavaModifier(m) for m in java_method.modifiers]
         self.arguments: List[JavaVariable] = []
@@ -124,24 +90,6 @@ class JavaMethod(JavaEntity):
             argument.modifiers = [JavaModifier(m) for m in parameter.modifiers]
             self.arguments.append(argument)
         self.name: str = java_method.name
-        # self.assignments: list = [] #TODO
-        # self.method_invocations: list = [] #TODO
-        # for statement in java_method.body:
-        #     if isinstance(statement, javalang.tree.TryStatement):
-        #         self.body_blocks.extend(statement.block)
-        #     else:
-        #         self.body_blocks.append(statement)
-        # for body_block in self.body_blocks:
-        #     if isinstance(body_block, javalang.tree.LocalVariableDeclaration):
-        #         self.local_variables.append(body_block)
-        #     elif isinstance(body_block, javalang.tree.StatementExpression):
-        #         if isinstance(body_block.expression, javalang.tree.Assignment):
-        #             self.assignments.append(body_block.expression)
-        #         elif isinstance(body_block.expression, javalang.tree.MethodInvocation):
-        #             self.method_invocations.append(body_block.expression)
-        #     else:
-        #         pp.pprint(f"{type(body_block)} {body_block.__dict__}")
-        #         raise ValueError(f"Unknown Body_block type: {type(body_block)}")
 
     def compare(self, other: JavaMethod) -> Report:
         report = Report(0, 0, self, other)
@@ -157,9 +105,6 @@ class JavaMethod(JavaEntity):
 
 class JavaClass(JavaEntity):
     def __init__(self, java_class: javalang.tree.ClassDeclaration, java_file: JavaFile):
-        # print(f"Class input type: {type(java_class)}")
-        # pp.pprint(java_class.__dict__)
-        # self.java_class: javalang.tree.ClassDeclaration = java_class
         super().__init__()
         self.java_file: JavaFile = java_file
         self.name: str = java_class.name
@@ -168,14 +113,12 @@ class JavaClass(JavaEntity):
         self.variables: List[JavaVariable] = []
         self.modifiers: List[JavaModifier] = [JavaModifier(m) for m in java_class.modifiers]
         for field in java_class.fields:
-            # self.fields.append(JavaField(field))
             for declarator in field.declarators:
                 if isinstance(declarator, javalang.tree.VariableDeclarator):
                     variable = JavaVariable(declarator)
                     variable.type = JavaType(field.type.name, self)
                     variable.modifiers = [JavaModifier(m) for m in field.modifiers]
                     self.variables.append(variable)
-        # self.variables.sort(key=lambda x: getattr(x.type, 'type_name', None))
         for method in java_class.methods:
             self.methods.append(JavaMethod(method, self))
 
@@ -196,12 +139,24 @@ class JavaClass(JavaEntity):
             report.child_reports.append(modifier_report)
         return report
 
+    def get_non_user_defined_types(self) -> List[JavaType]:
+        ans = []
+        for var in self.variables:
+            if not var.type.is_user_defined:
+                ans.append(var)
+            elif var.type.name == self.name:
+                continue    # TODO is this better or Type("this", self)?
+            else:
+                ans.extend(self.java_file.project.get_class(var.type.package, var.type.name).get_non_user_defined_types())
+        return ans
+
 
 class JavaFile(JavaEntity):
     def __init__(self, path: Union[str, pathlib.Path], project: Project):
         super().__init__()
         self.path: pathlib.Path = pathlib.Path(path) if not isinstance(path, pathlib.Path) else path
-        self.name = self.path.name
+        self.name: str = self.path.name
+        self.name_without_appendix: str = self.name.replace(".java", '')
         with open(self.path, 'r') as inp_file:
             lines = ''.join(inp_file.readlines())
         compilation_unit = javalang.parse.parse(lines)
@@ -236,12 +191,40 @@ class Project(JavaEntity):
             raise FileExistsError(f"Found too many project roots: {root_paths}")
         self.root_path = root_paths[0]
         self.packages: Set[str] = set()
+        self.user_types: List[JavaType] = []
         self.java_files: List[JavaFile] = []
         java_files = [f for f in self.root_path.glob("**/*.java")]
-        for java_file in java_files:
-            self.packages.add((str(java_file.parent).replace(str(self.root_path) + '/', '')).replace('/', '.'))
-        for java_file in java_files:
-            self.java_files.append(JavaFile(java_file, self))
+        for file in java_files:
+            self.packages.add((str(file.parent).replace(str(self.root_path) + '/', '')).replace('/', '.'))
+        for file in java_files:
+            self.java_files.append(JavaFile(file, self))
+        for t in self.user_types:
+            type_class = self.get_class(t.package, t.name)
+            t.non_user_defined_types.extend(type_class.get_non_user_defined_types())
+
+    def get_file(self, package: str, class_name: str) -> Optional[JavaFile]:
+        files = [f for f in filter(lambda x: True if x.name_without_appendix == class_name and x.package == package else False, self.java_files)]
+        if len(files) == 1:
+            return files[0]
+        print(f"Project.get_file: Cannot find {package}.{class_name}!")
+        return None
+
+    def get_class(self, package: str, class_name: str) -> Optional[JavaClass]:
+        classes = getattr(self.get_file(package, class_name), "classes", None)
+        if not classes:
+            return None
+        found_classes = [f for f in filter(lambda x: True if x.name == class_name else False, classes)]
+        if len(found_classes) == 1:
+            return found_classes[0]
+        print(f"Project.get_class: Cannot find {package}.{class_name}!")
+        return None
+
+    def get_user_type(self, package: str, class_name: str) -> Optional[JavaType]:
+        types = [t for t in filter(lambda x: True if x.package == package and x.name == class_name else False, self.user_types)]
+        if len(types) == 1:
+            return types[0]
+        print(f"Project.get_user_type: Cannot find {package}.{class_name}!")
+        return None
 
 
 class JavaType(JavaEntity):
@@ -253,28 +236,45 @@ class JavaType(JavaEntity):
         if not type_name:
             return
         self.compatible_format: str = definitions.translation_dict.get(self.name)
+        self.package = ""
         for imp in self.java_class.java_file.imports:
             if re.match(f"^.*{self.name}$", imp) is not None:
-                package = imp.replace(f".{type_name}", '')
-                if package in self.java_class.java_file.project.packages:
+                self.package = imp.replace(f".{type_name}", '')
+                if self.package in self.java_class.java_file.project.packages:
                     self.is_user_defined = True
                 else:
                     self.is_user_defined = False
                 break
         if self.name == self.java_class.name:
             self.is_user_defined = True
+        self.non_user_defined_types: List[JavaType] = [] #TODO
+        if self.is_user_defined:
+            if self not in self.java_class.java_file.project.user_types:
+                self.java_class.java_file.project.user_types.append(self)
 
     def compare(self, other: JavaType) -> Report:
         if not self.name and not other.name:
             return Report(100, 1, self, other)
-        if self.name == other.name:
-            return Report(100, 10, self, other)
-        elif (self.compatible_format == other.name and other.name is not None) \
-                or (self.name == other.compatible_format and self.name is not None):
-            return Report(75, 10, self, other)
-        elif self.compatible_format is not None and self.compatible_format == other.compatible_format:
-            return Report(50, 10, self, other)
+        if not self.is_user_defined:
+            if self.name == other.name:
+                return Report(100, 10, self, other)
+            elif (self.compatible_format == other.name and other.name is not None) \
+                    or (self.name == other.compatible_format and self.name is not None):
+                return Report(75, 10, self, other)
+            elif self.compatible_format is not None and self.compatible_format == other.compatible_format:
+                return Report(50, 10, self, other)
+        else:
+            report = Report(0, 0, self, other)
+            other_initialized_type = other.java_class.java_file.project.get_user_type(other.package, other.name)
+            for t in self.java_class.java_file.project.get_user_type(self.package, self.name).non_user_defined_types:
+                subtype_report = max([t.compare(o) for o in other_initialized_type.non_user_defined_types])
+                report += subtype_report
+                report.child_reports.append(subtype_report)
+            return report
         return Report(0, 10, self, other)
+
+    def __eq__(self, other: JavaType):
+        return self.name == other.name and self.package == other.package
 
 
 class JavaVariable(JavaEntity):
