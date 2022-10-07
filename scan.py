@@ -99,11 +99,16 @@ class JavaMethod:
     def compare(self, other: JavaMethod) -> int:
         score = 0
         for argument in self.arguments:
+            max_cmp = 0
             for other_argument in other.arguments:
-                score += argument.compare(other_argument)
-        score //= (len(self.arguments) * len(other.arguments))
+                max_cmp = max(max_cmp, argument.compare(other_argument))
+            score += max_cmp
+        score //= (len(self.arguments))
         score //= 2
-        score += self.return_type.compare(other.return_type) // 2
+        if not self.return_type.type_name and not other.return_type.type_name:
+            score += 50
+        else:
+            score += self.return_type.compare(other.return_type) // 2
         print(f"Comparing methods: {self.name}, {other.name}. Score: {score}")
         return score
 
@@ -137,15 +142,19 @@ class JavaClass:
         """Returns value between 0 and 100 based on the likelihood of plagiarism."""
         score = 0
         for method in self.methods:
+            max_cmp = 0
             for other_method in other.methods:
-                score += method.compare(other_method)
-        score //= (len(self.methods) * len(other.methods))
+                max_cmp = max(max_cmp, method.compare(other_method))
+            score += max_cmp
+        score //= len(self.methods)
         score //= 2
         temp_score = 0
         for variable in self.variables:
+            max_cmp = 0
             for other_variable in other.variables:
-                temp_score += variable.compare(other_variable)
-        temp_score //= len(self.variables * len(other.variables))
+                max_cmp = max(max_cmp, variable.compare(other_variable))
+            temp_score += max_cmp
+        temp_score //= len(self.variables)
         temp_score //= 2
         return score + temp_score
 
@@ -169,9 +178,11 @@ class JavaFile:
         """Returns value between 0 and 100 based on the likelihood of plagiarism."""
         score = 0
         for cl in self.classes:
+            max_cmp = 0
             for other_cl in other.classes:
-                score += cl.compare(other_cl)
-        score //= (len(self.classes) * len(other.classes))
+                max_cmp = max(max_cmp, cl.compare(other_cl))
+            score += max_cmp
+        score //= len(self.classes)
         return score
 
 
@@ -219,15 +230,16 @@ class JavaType:
         return f"< {self.__class__.__name__}: {self.__dict__}>"
 
     def compare(self, other: JavaType) -> int:
-        score = 0
+        if not self.type_name and not other.type_name:
+            return 50
         if self.type_name == other.type_name:
-            score = 100
-        elif self.compatible_format == other.type_name or self.type_name == other.compatible_format:
-            score = 75
+            return 100
+        elif (self.compatible_format == other.type_name and other.type_name is not None)\
+                or (self.type_name == other.compatible_format and self.type_name is not None):
+            return 75
         elif self.compatible_format is not None and self.compatible_format == other.compatible_format:
-            score = 50
-        print(f"Comparing types: {self.type_name, other.type_name}, score: {score}")
-        return score
+            return 50
+        return 0
 
 
 class JavaVariable:
@@ -243,13 +255,16 @@ class JavaVariable:
         return f"< {self.__class__.__name__}: {self.__dict__}>"
 
     def compare(self, other: JavaVariable) -> int:
+        type_compare = self.type.compare(other.type)
+        if type_compare >= 75 and self.modifiers == other.modifiers:
+            return 100
+        if type_compare >= 50 and self.modifiers == other.modifiers:
+            return 75
         score = 0
         for modifier in self.modifiers:
             if modifier in other.modifiers:
-                score += 50 // len(self.modifiers)
-        score += self.type.compare(other.type)
-        if self.name == other.name:
-            score += 50
+                score += 100 // len(self.modifiers)
+        score += type_compare
         return score // 2
 
 
