@@ -17,10 +17,12 @@ pp = pprint.PrettyPrinter(indent=4)
 
 @total_ordering
 class Report:
-    def __init__(self, probability: int, first: JavaEntity, second: JavaEntity):
+    def __init__(self, probability: int, weight: int, first: JavaEntity, second: JavaEntity):
         self.probability: int = probability
+        self.weight: int = weight
         self.first: JavaEntity = first
         self.second: JavaEntity = second
+        self.child_reports: List[Report] = []
 
     def __lt__(self, other: Report):
         return self.probability < other.probability
@@ -29,7 +31,12 @@ class Report:
         return self.probability == other.probability
 
     def __repr__(self):
-        return f"< Report, probability: {self.probability}, comparing entities: {self.first.name}, {self.second.name}>"
+        return f"< Report, probability: {self.probability}, comparing entities: {self.first.name}, " \
+               f"{self.second.name}, Child reports: {self.child_reports}>"
+
+    def __add__(self, other: Report):
+        return Report(((self.probability * self.weight + other.probability * other.weight) //
+                       (self.weight + other.weight)), (self.weight + other.weight) // 2, self.first, self.second)
 
 
 class JavaEntity(ABC):
@@ -89,23 +96,33 @@ class JavaEntity(ABC):
 #     def __repr__(self):
 #         return f"< {self.__class__.__name__}: {self.__dict__}>"
 
+class JavaModifier(JavaEntity):
+    def __init__(self, name: str):
+        super().__init__()
+        self.name: str = name
+
+    def compare(self, other: JavaModifier) -> Report:
+        if self.name == other.name:
+            return Report(100, 10, self, other)
+        else:
+            return Report(0, 10, self, other)
+
 
 class JavaMethod(JavaEntity):
     def __init__(self, java_method: javalang.tree.MethodDeclaration, java_class: JavaClass):
-        # print(f"Method input type: {type(java_method)}")
         # self.java_method: javalang.tree.MethodDeclaration = java_method
         super().__init__()
         self.java_class: JavaClass = java_class
         # self.body_blocks: list[javalang.tree.Expression] = []
         # self.local_variables: list[JavaVariable] = []
         self.return_type: JavaType = JavaType(getattr(java_method.return_type, "name", None), java_class)
+        self.modifiers: List[JavaModifier] = [JavaModifier(m) for m in java_method.modifiers]
         self.arguments: List[JavaVariable] = []
         for parameter in java_method.parameters:
             argument = JavaVariable(parameter)
             argument.type = JavaType(parameter.type.name, java_class)
-            argument.modifiers = parameter.modifiers
+            argument.modifiers = [JavaModifier(m) for m in parameter.modifiers]
             self.arguments.append(argument)
-        # self.arguments.sort(key=lambda x: getattr(x.type, 'type_name', None))
         self.name: str = java_method.name
         # self.assignments: list = [] #TODO
         # self.method_invocations: list = [] #TODO
@@ -127,20 +144,15 @@ class JavaMethod(JavaEntity):
         #         raise ValueError(f"Unknown Body_block type: {type(body_block)}")
 
     def compare(self, other: JavaMethod) -> Report:
-        score = 0
+        report = Report(0, 0, self, other)
         for argument in self.arguments:
-            max_cmp = 0
-            for other_argument in other.arguments:
-                max_cmp = max(max_cmp, argument.compare(other_argument).probability)
-            score += max_cmp
-        score //= (len(self.arguments))
-        score //= 2
-        if not self.return_type.name and not other.return_type.name:
-            score += 50
-        else:
-            score += self.return_type.compare(other.return_type).probability // 2
-        print(f"Comparing methods: {self.name}, {other.name}. Score: {score}")
-        return Report(score, self, other)
+            max_cmp = max([argument.compare(other_argument) for other_argument in other.arguments])
+            report.child_reports.append(max_cmp)
+            report += max_cmp
+        return_type_report = self.return_type.compare(other.return_type)
+        report += return_type_report
+        report.child_reports.append(return_type_report)
+        return report
 
 
 class JavaClass(JavaEntity):
@@ -154,13 +166,14 @@ class JavaClass(JavaEntity):
         # self.fields = []
         self.methods: List[JavaMethod] = []
         self.variables: List[JavaVariable] = []
+        self.modifiers: List[JavaModifier] = [JavaModifier(m) for m in java_class.modifiers]
         for field in java_class.fields:
             # self.fields.append(JavaField(field))
             for declarator in field.declarators:
                 if isinstance(declarator, javalang.tree.VariableDeclarator):
                     variable = JavaVariable(declarator)
                     variable.type = JavaType(field.type.name, self)
-                    variable.modifiers = field.modifiers
+                    variable.modifiers = [JavaModifier(m) for m in field.modifiers]
                     self.variables.append(variable)
         # self.variables.sort(key=lambda x: getattr(x.type, 'type_name', None))
         for method in java_class.methods:
@@ -168,23 +181,20 @@ class JavaClass(JavaEntity):
 
     def compare(self, other: JavaClass) -> Report:
         """Returns value between 0 and 100 based on the likelihood of plagiarism."""
-        score = 0
+        report = Report(0, 0, self, other)
         for method in self.methods:
-            max_cmp = 0
-            for other_method in other.methods:
-                max_cmp = max(max_cmp, method.compare(other_method).probability)
-            score += max_cmp
-        score //= len(self.methods)
-        score //= 2
-        temp_score = 0
+            method_report = max([method.compare(other_method) for other_method in other.methods])
+            report += method_report
+            report.child_reports.append(method_report)
         for variable in self.variables:
-            max_cmp = 0
-            for other_variable in other.variables:
-                max_cmp = max(max_cmp, variable.compare(other_variable).probability)
-            temp_score += max_cmp
-        temp_score //= len(self.variables)
-        temp_score //= 2
-        return Report(score + temp_score, self, other)
+            variable_report = max([variable.compare(other_variable) for other_variable in other.variables])
+            report += variable_report
+            report.child_reports.append(variable_report)
+        for modifier in self.modifiers:
+            modifier_report = max([modifier.compare(other_modifier) for other_modifier in other.modifiers])
+            report += modifier_report
+            report.child_reports.append(modifier_report)
+        return report
 
 
 class JavaFile(JavaEntity):
@@ -203,14 +213,12 @@ class JavaFile(JavaEntity):
 
     def compare(self, other: JavaFile) -> Report:
         """Returns value between 0 and 100 based on the likelihood of plagiarism."""
-        score = 0
+        report = Report(0, 0, self, other)
         for cl in self.classes:
-            max_cmp = 0
-            for other_cl in other.classes:
-                max_cmp = max(max_cmp, cl.compare(other_cl).probability)
-            score += max_cmp
-        score //= len(self.classes)
-        return Report(score, self, other)
+            class_report = max([cl.compare(other_class) for other_class in other.classes])
+            report += class_report
+            report.child_reports.append(class_report)
+        return report
 
 
 class Project(JavaEntity):
@@ -258,15 +266,15 @@ class JavaType(JavaEntity):
 
     def compare(self, other: JavaType) -> Report:
         if not self.name and not other.name:
-            return Report(50, self, other)
+            return Report(100, 1, self, other)
         if self.name == other.name:
-            return Report(100, self, other)
+            return Report(100, 10, self, other)
         elif (self.compatible_format == other.name and other.name is not None) \
                 or (self.name == other.compatible_format and self.name is not None):
-            return Report(75, self, other)
+            return Report(75, 10, self, other)
         elif self.compatible_format is not None and self.compatible_format == other.compatible_format:
-            return Report(50, self, other)
-        return Report(0, self, other)
+            return Report(50, 10, self, other)
+        return Report(0, 10, self, other)
 
 
 class JavaVariable(JavaEntity):
@@ -277,25 +285,23 @@ class JavaVariable(JavaEntity):
         super().__init__()
         self.name: str = java_variable.name
         self.type: JavaType = None
-        self.modifiers: set = None
+        self.modifiers: List[JavaModifier] = None
 
     def compare(self, other: JavaVariable) -> Report:
-        type_compare = self.type.compare(other.type).probability
-        if type_compare >= 75 and self.modifiers == other.modifiers:
-            return Report(100, self, other)
-        if type_compare >= 50 and self.modifiers == other.modifiers:
-            return Report(75, self, other)
-        score = 0
+        report = Report(0, 0, self, other)
+        type_compare = self.type.compare(other.type)
+        report += type_compare
+        report.child_reports.append(type_compare)   # TODO
         for modifier in self.modifiers:
-            if modifier in other.modifiers:
-                score += 100 // len(self.modifiers)
-        score += type_compare
-        return Report(score // 2, self, other)
+            modifier_report = max([modifier.compare(other_modifier) for other_modifier in other.modifiers])
+            report += modifier_report
+            report.child_reports.append(modifier_report)
+        return report
 
 
 project = Project("/home/lmayo/Dokumenty/baklazanka/java_test/Projekt_BDS_3/")
 file1 = [f for f in project.root_path.glob("**/App.java")][0]
-file2 = [f for f in project.root_path.glob("**/Main.java")][0]
+file2 = [f for f in project.root_path.glob("**/App2.java")][0]
 project_files = [f for f in filter(lambda x: True if x.path in (file1, file2) else False, project.java_files)]
 print([f.path for f in project_files])
 print(project_files[0].compare(project_files[1]))
