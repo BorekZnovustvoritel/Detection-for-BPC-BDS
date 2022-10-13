@@ -15,3 +15,4 @@ translation_dict = {
     'HashMap': 'Map',
     'TreeMap': 'Map'
     }
+treshold = 30
