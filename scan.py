@@ -37,7 +37,12 @@ class Report:
     def __add__(self, other: Report):
         report = Report(((self.probability * self.weight + other.probability * other.weight) //
                          (self.weight + other.weight)), (self.weight + other.weight), self.first, self.second)
-        report.child_reports.extend(self.child_reports + other.child_reports)
+        if isinstance(self.first, type(other.first)) and isinstance(self.second, type(other.second)):
+            pass
+            report.child_reports.extend(self.child_reports + other.child_reports)
+        else:
+            report.child_reports.extend(self.child_reports)
+            report.child_reports.append(other)
         return report
 
 
@@ -111,7 +116,6 @@ class JavaType(JavaEntity):
             for t in self.java_class.java_file.project.get_user_type(self.package, self.name).non_user_defined_types:
                 subtype_report = max([t.compare(o) for o in other_initialized_type.non_user_defined_types])
                 report += subtype_report
-                report.child_reports.append(subtype_report)
             return report
         return Report(0, 10, self, other)
 
@@ -121,9 +125,6 @@ class JavaType(JavaEntity):
 
 class JavaVariable(JavaEntity):
     def __init__(self, java_variable: javalang.tree.VariableDeclarator):
-        # print(f"Variable input type: {type(java_variable)}")
-        # pp.pprint(java_variable.__dict__)
-        # self.java_variable: javalang.tree.VariableDeclarator = java_variable
         super().__init__()
         self.name: str = java_variable.name
         self.type: JavaType = None
@@ -133,12 +134,10 @@ class JavaVariable(JavaEntity):
         report = Report(0, 0, self, other)
         type_compare = self.type.compare(other.type)
         report += type_compare
-        report.child_reports.append(type_compare)
         if len(other.modifiers) > 0:
             for modifier in self.modifiers:
                 modifier_report = max([modifier.compare(other_modifier) for other_modifier in other.modifiers])
                 report += modifier_report
-                report.child_reports.append(modifier_report)
         return report
 
 
@@ -174,11 +173,9 @@ class JavaMethod(JavaEntity):
         if len(other.arguments) > 0:
             for argument in self.arguments:
                 max_cmp = max([argument.compare(other_argument) for other_argument in other.arguments])
-                report.child_reports.append(max_cmp)
                 report += max_cmp
         return_type_report = self.return_type.compare(other.return_type)
         report += return_type_report
-        report.child_reports.append(return_type_report)
         return report
 
 
@@ -208,29 +205,26 @@ class JavaClass(JavaEntity):
             for method in self.methods:
                 method_report = max([method.compare(other_method) for other_method in other.methods])
                 report += method_report
-                report.child_reports.append(method_report)
         if len(other.variables) > 0:
             for variable in self.variables:
                 variable_report = max([variable.compare(other_variable) for other_variable in other.variables])
                 report += variable_report
-                report.child_reports.append(variable_report)
         if len(other.modifiers) > 0:
             for modifier in self.modifiers:
                 modifier_report = max([modifier.compare(other_modifier) for other_modifier in other.modifiers])
                 report += modifier_report
-                report.child_reports.append(modifier_report)
         return report
 
     def get_non_user_defined_types(self) -> List[JavaType]:
         ans = []
-        for var in self.variables:
-            if not var.type.is_user_defined:
-                ans.append(var)
-            elif var.type.name == self.name:
+        for variable in self.variables:
+            if not variable.type.is_user_defined:
+                ans.append(variable)
+            elif variable.type.name == self.name:
                 continue  # TODO is this better or Type("this", self)?
             else:
                 ans.extend(
-                    self.java_file.project.get_class(var.type.package, var.type.name).get_non_user_defined_types())
+                    self.java_file.project.get_class(variable.type.package, variable.type.name).get_non_user_defined_types())
         return ans
 
 
@@ -256,7 +250,6 @@ class JavaFile(JavaEntity):
             for cl in self.classes:
                 class_report = max(cl.compare(other_class) for other_class in other.classes)
                 report += class_report
-                report.child_reports.append(class_report)
         return report
 
 
@@ -346,13 +339,7 @@ class Project(JavaEntity):
         return report
 
 
-# project = Project("/home/lmayo/Dokumenty/baklazanka/java_test/Projekt_BDS_3/")
-# file1 = [f for f in project.root_path.glob("**/App.java")][0]
-# file2 = [f for f in project.root_path.glob("**/App2.java")][0]
-# project_files = [f for f in filter(lambda x: True if x.path in (file1, file2) else False, project.java_files)]
-# print([f.path for f in project_files])
-# print(project_files[0].compare(project_files[1]))
-proj1 = Project("/home/lmayo/Dokumenty/baklazanka/java_test/Projekt_BDS_4/")
-proj2 = Project("/home/lmayo/Dokumenty/baklazanka/java_test/Projekt_BDS_3/")
-
-pp.pprint(proj1.compare(proj2))
+# proj1 = Project("/home/lmayo/Dokumenty/baklazanka/java_test/Projekt_BDS_4/")
+# proj2 = Project("/home/lmayo/Dokumenty/baklazanka/java_test/Projekt_BDS_3/")
+#
+# pp.pprint(proj1.compare(proj2))

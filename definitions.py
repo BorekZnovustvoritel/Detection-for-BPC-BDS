@@ -13,6 +13,11 @@ translation_dict = {
     'ArrayList': 'List',
     'LinkedList': 'List',
     'HashMap': 'Map',
-    'TreeMap': 'Map'
+    'TreeMap': 'Map',
+    'FloatProperty': 'DoubleProperty',
+    'IntegerProperty': 'DoubleProperty',
+    'LongProperty': 'DoubleProperty',
     }
 treshold = 30
+projects_dir = "projects"
+env_file = ".env"
