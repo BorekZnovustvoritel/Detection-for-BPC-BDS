@@ -19,6 +19,9 @@ def clone_projects(env_file: pathlib.Path, clone_dir: pathlib.Path):
     if git_return_val != 0:
         raise EnvironmentError("Git is not installed on this system!")
 
+    curr_dir = os.getcwd()
+    os.chdir(clone_dir)
+
     for group_json in requests.get(
         f"https://gitlab.com/api/v4/groups/{group_id}/subgroups",
         headers={"PRIVATE-TOKEN": token},
@@ -30,5 +33,6 @@ def clone_projects(env_file: pathlib.Path, clone_dir: pathlib.Path):
             if "3" in project_json["name"]:
                 os.system(
                     f"git clone https://git:{token}@gitlab.com/{project_json['path_with_namespace']}.git "
-                    f"{clone_dir}/{group_json['path']}-{project_json['path']}"
+                    f"{group_json['path']}-{project_json['path']}"
                 )
+    os.chdir(curr_dir)
