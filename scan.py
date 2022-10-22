@@ -92,7 +92,7 @@ class JavaType(JavaEntity):
                 break
         if self.name == self.java_class.name:
             self.is_user_defined = True
-        self.non_user_defined_types: List[JavaType] = []  # TODO
+        self.non_user_defined_types: List[JavaType] = []
         if self.is_user_defined:
             if self not in self.java_class.java_file.project.user_types:
                 self.java_class.java_file.project.user_types.append(self)
@@ -254,9 +254,13 @@ class JavaFile(JavaEntity):
 
 
 class Project(JavaEntity):
-    def __init__(self, path: str):
+    def __init__(self, path: Union[str, pathlib.Path]):
         super().__init__()
-        self.path: pathlib.Path = pathlib.Path(path)
+        self.path: pathlib.Path = None
+        if not isinstance(path, pathlib.Path):
+            self.path = pathlib.Path(path)
+        else:
+            self.path = path
         if not self.path.exists():
             raise ValueError(f"Given path does not exist: {path}")
         self.name = self.path.name
@@ -324,8 +328,8 @@ class Project(JavaEntity):
         unused_files: List[JavaFile] = self.java_files
         other_unused_files: List[JavaFile] = other.java_files
         for package_dir in self.package_directories:
-            correspondig_packages = list(filter(lambda x: True if x.name == package_dir.name else False, other.package_directories))
-            files_to_compare = list(filter(lambda x: True if x.path.parent in correspondig_packages else False, other.java_files))
+            corresponding_packages = list(filter(lambda x: True if x.name == package_dir.name else False, other.package_directories))
+            files_to_compare = list(filter(lambda x: True if x.path.parent in corresponding_packages else False, other.java_files))
             files_in_package = list(filter(lambda x: True if x.path.parent == package_dir else False, self.java_files))
             if len(files_to_compare) > 0:
                 for file in files_in_package:

@@ -30,5 +30,5 @@ def clone_projects(env_file: pathlib.Path, clone_dir: pathlib.Path):
             if "3" in project_json["name"]:
                 os.system(
                     f"git clone https://git:{token}@gitlab.com/{project_json['path_with_namespace']}.git "
-                    f"{clone_dir}/{group_json['path']}-{project_json['name']}"
+                    f"{clone_dir}/{group_json['path']}-{project_json['path']}"
                 )
