@@ -1,4 +1,4 @@
-from scan import Report, Project, JavaFile, JavaClass, JavaMethod, JavaVariable
+from scan import Report, Project, JavaFile, JavaClass, JavaMethod, JavaVariable, JavaType
 from definitions import treshold
 
 
@@ -17,13 +17,4 @@ def print_path(report: Report, indent: int = 0) -> str:
     return string
 
 
-if __name__ == "__main__":
-    proj1 = Project("/home/lmayo/Dokumenty/baklazanka/java_test/Projekt_BDS_4/")
-    proj2 = Project("/home/lmayo/Dokumenty/baklazanka/java_test/Projekt_BDS_3/")
-    cmp = proj1.compare(proj2)
-    print(
-        print_path(
-            cmp
-        )
-    )
 

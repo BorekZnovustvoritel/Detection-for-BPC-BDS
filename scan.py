@@ -11,6 +11,7 @@ from typing import List, Union, Set, Optional
 import re
 
 import definitions
+import utils
 
 pp = pprint.PrettyPrinter(indent=4)
 
@@ -234,9 +235,7 @@ class JavaFile(JavaEntity):
         self.path: pathlib.Path = pathlib.Path(path) if not isinstance(path, pathlib.Path) else path
         self.name: str = self.path.name
         self.name_without_appendix: str = self.name.replace(".java", '')
-        with open(self.path, 'r') as inp_file:
-            lines = ''.join(inp_file.readlines())
-        compilation_unit = javalang.parse.parse(lines)
+        compilation_unit = utils.get_ast(path)
         self.project: Project = project
         self.package: str = compilation_unit.package.name
         self.imports: List[str] = [i.path for i in compilation_unit.imports]
@@ -264,28 +263,23 @@ class Project(JavaEntity):
         if not self.path.exists():
             raise ValueError(f"Given path does not exist: {path}")
         self.name = self.path.name
-        root_paths = list(self.path.glob("**/src/main/java"))
-        if len(root_paths) > 2:
-            raise FileExistsError(f"Found too many project roots: {root_paths}")
-        self.root_path = root_paths[0]
-        self.packages: Set[str] = set()
+        self.root_path = utils.get_user_project_root(self.path)
+        self.packages: Set[str] = utils.get_packages(self.path)
         self.user_types: List[JavaType] = []
         self.java_files: List[JavaFile] = []
         self.package_directories: List[pathlib.Path] = []
-        java_files = [f for f in self.root_path.glob("**/*.java")]
+        java_files = utils.get_java_files(self.path)
         for file in java_files:
             self.package_directories.append(file.parent)
-            self.packages.add((str(file.parent).replace(str(self.root_path) + '/', '')).replace('/', '.'))
-        for file in java_files:
             self.java_files.append(JavaFile(file, self))
         for t in self.user_types:
             type_class = self.get_class(t.package, t.name)
             t.non_user_defined_types.extend(type_class.get_non_user_defined_types())
 
     def get_file(self, package: str, class_name: str) -> Optional[JavaFile]:
-        files = [f for f in
+        files = list(
                  filter(lambda x: True if x.name_without_appendix == class_name and x.package == package else False,
-                        self.java_files)]
+                        self.java_files))
         if len(files) == 1:
             return files[0]
         print(f"Project.get_file: Cannot find {package}.{class_name}!")
@@ -295,15 +289,16 @@ class Project(JavaEntity):
         classes = getattr(self.get_file(package, class_name), "classes", None)
         if not classes:
             return None
-        found_classes = [f for f in filter(lambda x: True if x.name == class_name else False, classes)]
+        found_classes = list(filter(lambda x: True if x.name == class_name else False, classes))
         if len(found_classes) == 1:
             return found_classes[0]
         print(f"Project.get_class: Cannot find {package}.{class_name}!")
         return None
 
     def get_user_type(self, package: str, class_name: str) -> Optional[JavaType]:
-        types = [t for t in
-                 filter(lambda x: True if x.package == package and x.name == class_name else False, self.user_types)]
+        types = list(
+            filter(lambda x: True if x.package == package and x.name == class_name else False, self.user_types)
+        )
         if len(types) == 1:
             return types[0]
         print(f"Project.get_user_type: Cannot find {package}.{class_name}!")
@@ -342,8 +337,3 @@ class Project(JavaEntity):
             report += max([file.compare(other_file) for other_file in other_unused_files])
         return report
 
-
-# proj1 = Project("/home/lmayo/Dokumenty/baklazanka/java_test/Projekt_BDS_4/")
-# proj2 = Project("/home/lmayo/Dokumenty/baklazanka/java_test/Projekt_BDS_3/")
-#
-# pp.pprint(proj1.compare(proj2))
