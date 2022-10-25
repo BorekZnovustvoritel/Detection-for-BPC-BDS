@@ -200,7 +200,6 @@ class JavaClass(JavaEntity):
             self.methods.append(JavaMethod(method, self))
 
     def compare(self, other: JavaClass) -> Report:
-        """Returns value between 0 and 100 based on the likelihood of plagiarism."""
         report = Report(0, 0, self, other)
         if len(other.methods) > 0:
             for method in self.methods:
@@ -243,7 +242,6 @@ class JavaFile(JavaEntity):
         self.classes: List[JavaClass] = [JavaClass(body, self) for body in compilation_unit.types]
 
     def compare(self, other: JavaFile) -> Report:
-        """Returns value between 0 and 100 based on the likelihood of plagiarism."""
         report = Report(0, 0, self, other)
         if len(other.classes) > 0:
             for cl in self.classes:
@@ -267,10 +265,8 @@ class Project(JavaEntity):
         self.packages: Set[str] = utils.get_packages(self.path)
         self.user_types: List[JavaType] = []
         self.java_files: List[JavaFile] = []
-        self.package_directories: List[pathlib.Path] = []
         java_files = utils.get_java_files(self.path)
         for file in java_files:
-            self.package_directories.append(file.parent)
             self.java_files.append(JavaFile(file, self))
         for t in self.user_types:
             type_class = self.get_class(t.package, t.name)
@@ -322,10 +318,10 @@ class Project(JavaEntity):
         report = Report(0, 0, self, other)
         unused_files: List[JavaFile] = self.java_files
         other_unused_files: List[JavaFile] = other.java_files
-        for package_dir in self.package_directories:
-            corresponding_packages = list(filter(lambda x: True if x.name == package_dir.name else False, other.package_directories))
-            files_to_compare = list(filter(lambda x: True if x.path.parent in corresponding_packages else False, other.java_files))
-            files_in_package = list(filter(lambda x: True if x.path.parent == package_dir else False, self.java_files))
+        for package in self.packages:
+            package_name = package.split(".")[-1]
+            files_in_package = list(filter(lambda x: True if package_name == x.package.split(".")[-1] else False, unused_files))
+            files_to_compare = list(filter(lambda x: True if package_name == x.package.split(".")[-1] else False, other_unused_files))
             if len(files_to_compare) > 0:
                 for file in files_in_package:
                     unused_files.remove(file)
