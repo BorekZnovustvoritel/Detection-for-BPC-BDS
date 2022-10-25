@@ -39,7 +39,6 @@ class Report:
         report = Report(((self.probability * self.weight + other.probability * other.weight) //
                          (self.weight + other.weight)), (self.weight + other.weight), self.first, self.second)
         if isinstance(self.first, type(other.first)) and isinstance(self.second, type(other.second)):
-            pass
             report.child_reports.extend(self.child_reports + other.child_reports)
         else:
             report.child_reports.extend(self.child_reports)
