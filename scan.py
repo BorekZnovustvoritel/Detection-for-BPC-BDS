@@ -7,7 +7,7 @@ from functools import total_ordering
 import javalang
 import javalang.tree
 import pprint
-from typing import List, Union, Set, Optional
+from typing import List, Union, Set, Optional, Dict
 import re
 
 import definitions
@@ -83,7 +83,7 @@ class JavaType(JavaEntity):
         self.compatible_format: str = definitions.translation_dict.get(self.name)
         self.package = ""
         for imp in self.java_class.java_file.imports:
-            if re.match(f"^.*{self.name}$", imp) is not None:
+            if re.match(rf"^.*\.{self.name}$", imp) is not None:
                 self.package = imp.replace(f".{type_name}", '')
                 if self.package in self.java_class.java_file.project.packages:
                     self.is_user_defined = True
@@ -92,10 +92,14 @@ class JavaType(JavaEntity):
                 break
         if self.name == self.java_class.name:
             self.is_user_defined = True
-        self.non_user_defined_types: List[JavaType] = []
+            self.package = self.java_class.java_file.package
         if self.is_user_defined:
-            if self not in self.java_class.java_file.project.user_types:
-                self.java_class.java_file.project.user_types.append(self)
+            if self not in self.java_class.java_file.project.user_types.keys():
+                self.java_class.java_file.project.user_types.update({self: []})
+
+    @property
+    def non_user_defined_types(self) -> List[JavaType]:
+        return self.java_class.java_file.project.user_types.get(self)
 
     def compare(self, other: JavaType) -> Report:
         if not self.name and not other.name:
@@ -121,6 +125,9 @@ class JavaType(JavaEntity):
 
     def __eq__(self, other: JavaType):
         return self.name == other.name and self.package == other.package
+
+    def __hash__(self):
+        return self.name.__hash__() + self.package.__hash__()
 
 
 class JavaVariable(JavaEntity):
@@ -262,14 +269,14 @@ class Project(JavaEntity):
         self.name = self.path.name
         self.root_path = utils.get_user_project_root(self.path)
         self.packages: Set[str] = utils.get_packages(self.path)
-        self.user_types: List[JavaType] = []
+        self.user_types: Dict[JavaType, List[JavaType]] = {}
         self.java_files: List[JavaFile] = []
         java_files = utils.get_java_files(self.path)
         for file in java_files:
             self.java_files.append(JavaFile(file, self))
-        for t in self.user_types:
+        for t in self.user_types.keys():
             type_class = self.get_class(t.package, t.name)
-            t.non_user_defined_types.extend(type_class.get_non_user_defined_types())
+            self.user_types.update({t: type_class.get_non_user_defined_types()})
 
     def get_file(self, package: str, class_name: str) -> Optional[JavaFile]:
         files = list(
@@ -292,7 +299,7 @@ class Project(JavaEntity):
 
     def get_user_type(self, package: str, class_name: str) -> Optional[JavaType]:
         types = list(
-            filter(lambda x: True if x.package == package and x.name == class_name else False, self.user_types)
+            filter(lambda x: True if x.package == package and x.name == class_name else False, self.user_types.keys())
         )
         if len(types) == 1:
             return types[0]
