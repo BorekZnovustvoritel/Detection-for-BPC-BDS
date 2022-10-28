@@ -1,3 +1,5 @@
+import datetime
+
 from gitlab import clone_projects
 from definitions import env_file, projects_dir
 from utils import get_self_project_root
@@ -22,6 +24,7 @@ if __name__ == "__main__":
 
     clone_projects(env_file_path, projects_dir_path)
 
+    start = datetime.datetime.now()
     projects = []
     for project_path in projects_dir_path.iterdir():
         projects.append(Project(project_path))
@@ -29,6 +32,7 @@ if __name__ == "__main__":
     reports = []
     for index, project in enumerate(projects):
         reports.extend([project.compare(other) for other in projects[index+1:]])
+    print(f"Parsing and comparing took {datetime.datetime.now() - start}.")
 
     for report in reports:
         print(f"Comparing projects: '{report.first.path}' and '{report.second.path}'")

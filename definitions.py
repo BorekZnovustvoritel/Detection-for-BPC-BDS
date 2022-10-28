@@ -18,6 +18,6 @@ translation_dict = {
     'IntegerProperty': 'DoubleProperty',
     'LongProperty': 'DoubleProperty',
     }
-treshold = 30
+threshold = 30
 projects_dir = "projects"
 env_file = ".env"

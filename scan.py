@@ -333,7 +333,7 @@ class Project(JavaEntity):
                     unused_files.remove(file)
                     max_report = max([file.compare(other_file) for other_file in files_to_compare])
                     report += max_report
-                    if max_report.probability > definitions.treshold and max_report.second in other_unused_files:
+                    if max_report.probability > definitions.threshold and max_report.second in other_unused_files:
                         other_unused_files.remove(max_report.second)
         for file in unused_files:
             report += max([file.compare(other_file) for other_file in other_unused_files])
