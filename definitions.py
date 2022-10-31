@@ -1,3 +1,5 @@
+import javalang
+from javalang import tree
 translation_dict = {
     'short': 'Double',
     'Short': 'Double',
@@ -18,6 +20,10 @@ translation_dict = {
     'IntegerProperty': 'DoubleProperty',
     'LongProperty': 'DoubleProperty',
     }
+node_translation_dict = {
+    javalang.tree.WhileStatement: javalang.tree.ForStatement,
+    javalang.tree.SwitchStatementCase: javalang.tree.IfStatement
+}
 threshold = 30
 projects_dir = "projects"
 env_file = ".env"

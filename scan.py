@@ -7,7 +7,7 @@ from functools import total_ordering
 import javalang
 import javalang.tree
 import pprint
-from typing import List, Union, Set, Optional, Dict
+from typing import List, Union, Set, Optional, Dict, Type
 import re
 
 import definitions
@@ -72,34 +72,23 @@ class JavaModifier(JavaEntity):
 
 
 class JavaType(JavaEntity):
-    def __init__(self, type_name: str, java_class: JavaClass):
+    def __init__(self, type_name: str, package: str, project: Project):
         super().__init__()
-        self.java_class: JavaClass = java_class
-        self.is_user_defined: bool = False
+        self.project = project
         self.name: str = type_name
+        self.package: str = package
         if not type_name:
             self.compatible_format = None
             return
         self.compatible_format: str = definitions.translation_dict.get(self.name)
-        self.package = ""
-        for imp in self.java_class.java_file.imports:
-            if re.match(rf"^.*\.{self.name}$", imp) is not None:
-                self.package = imp.replace(f".{type_name}", '')
-                if self.package in self.java_class.java_file.project.packages:
-                    self.is_user_defined = True
-                else:
-                    self.is_user_defined = False
-                break
-        if self.name == self.java_class.name:
-            self.is_user_defined = True
-            self.package = self.java_class.java_file.package
-        if self.is_user_defined:
-            if self not in self.java_class.java_file.project.user_types.keys():
-                self.java_class.java_file.project.user_types.update({self: []})
+
+    @property
+    def is_user_defined(self) -> bool:
+        return True if self in self.project.user_types else False
 
     @property
     def non_user_defined_types(self) -> List[JavaType]:
-        return self.java_class.java_file.project.user_types.get(self)
+        return self.project.user_types.get(self)
 
     def compare(self, other: JavaType) -> Report:
         if not self.name and not other.name:
@@ -116,8 +105,8 @@ class JavaType(JavaEntity):
                 return Report(50, 10, self, other)
         else:
             report = Report(0, 0, self, other)
-            other_initialized_type = other.java_class.java_file.project.get_user_type(other.package, other.name)
-            for t in self.java_class.java_file.project.get_user_type(self.package, self.name).non_user_defined_types:
+            other_initialized_type = other.project.get_user_type(other.package, other.name)
+            for t in self.project.get_user_type(self.package, self.name).non_user_defined_types:
                 subtype_report = max([t.compare(o) for o in other_initialized_type.non_user_defined_types])
                 report += subtype_report
             return report
@@ -131,11 +120,17 @@ class JavaType(JavaEntity):
 
 
 class JavaVariable(JavaEntity):
-    def __init__(self, java_variable: javalang.tree.VariableDeclarator):
+    def __init__(self, variable_declaration: Union[javalang.tree.VariableDeclaration, javalang.tree.FieldDeclaration],
+                 variable_declarator: javalang.tree.VariableDeclarator, java_file: JavaFile):
         super().__init__()
-        self.name: str = java_variable.name
-        self.type: JavaType = None
-        self.modifiers: List[JavaModifier] = None
+        self.java_file: JavaFile = java_file
+        self.name: str = variable_declarator.name
+        self.modifiers: List[JavaModifier] = [JavaModifier(m) for m in variable_declaration.modifiers]
+        self.type_name: str = variable_declaration.type.name
+
+    @property
+    def type(self) -> JavaType:
+        return self.java_file.get_type(self.type_name)
 
     def compare(self, other: JavaVariable) -> Report:
         report = Report(0, 0, self, other)
@@ -148,32 +143,154 @@ class JavaVariable(JavaEntity):
         return report
 
 
-class JavaStatementBlock(JavaEntity):
-    def __init__(self, statement: javalang.tree.Statement, method: JavaMethod, name: str):
+class JavaMethodInvocation(JavaEntity):
+    def __init__(self, method_invocation: javalang.tree.MethodInvocation, statement: JavaStatementBlock):
         super().__init__()
-        self.name: str = name
-        self.java_method: JavaMethod = method
-        self.statements: Set[javalang.tree.Statement] = set()
+        self.statement = statement
+        self.qualifier_str = method_invocation.qualifier
+        self.name = method_invocation.member
+
+    @property
+    def qualifier(self) -> Optional[JavaVariable]:
+        if self.qualifier_str:
+            qualifier = self.statement.java_method.get_local_variable(self.qualifier_str)
+            if not qualifier:
+                qualifier = self.statement.java_method.java_class.get_variable(self.qualifier_str)
+            return qualifier
+        else:
+            return None
+
+    @property
+    def method_referenced(self) -> Optional[JavaMethod]:
+        qualifier = self.qualifier
+        if qualifier:
+            t = qualifier.type
+            if t.is_user_defined:
+                cls = list(filter(lambda x: True if x.name == t.name else False,
+                                  self.statement.java_method.java_class.java_file.project.get_classes_in_package(
+                                      t.package)))
+                if len(cls) != 1:
+                    return None
+                m = list(filter(lambda x: True if x.name == self.name else False, cls[0].methods))
+                if len(m) != 1:
+                    return None
+                return m[0]
+
+    def compare(self, other: JavaEntity) -> Report:
+        pass
+
+
+class JavaStatementBlock(JavaEntity):
+    def __init__(self, statement: javalang.tree.Statement, java_method: JavaMethod):
+        super().__init__()
+        self.java_method = java_method
+        self.invoked_methods: List[JavaMethodInvocation] = [JavaMethodInvocation(m, self) for m in
+                                                            self._search_for_type(statement,
+                                                                                  javalang.tree.MethodInvocation)]
+        self.parts: Dict[Type, int] = self._tree_to_dict(statement)
+        for statement_block in self.raw_statements_from_invocations:
+            self.parts.update(self._tree_to_dict(statement_block))
+
+    @property
+    def raw_statements_from_invocations(self) -> List[javalang.tree.Node]:
+        ans = []
+        for invoked_method in self.invoked_methods:
+            m = invoked_method.method_referenced
+            if m is not None:
+                ans.extend(m.raw_statement_blocks)
+        return ans
 
     def compare(self, other: JavaStatementBlock) -> Report:
-        pass
+        report = Report(0, 0, self, other)
+        for node_type in self.parts:
+            self_occurrences = self.parts[node_type]
+            other_occurrences = other.parts.get(node_type, 0)
+            if other_occurrences > 0:
+                report += Report(
+                    int(100 - 100 * (abs(self_occurrences - other_occurrences) / (self_occurrences + other_occurrences))),
+                    10, self, other)
+            else:
+                backup_node_type = definitions.node_translation_dict.get(node_type, None)
+                if backup_node_type is not None:
+                    other_occurrences = other.parts.get(backup_node_type, 0)
+                    if other_occurrences > 0:
+                        report += Report(int(50 - 50 * (
+                                    abs(self_occurrences - other_occurrences) / (self_occurrences + other_occurrences))),
+                                         10, self, other)
+                else:
+                    report += Report(0, 10, self, other)
+        return report
+
+    def _search_for_type(self, statement: javalang.tree.Node, block_type: Type) -> List:
+        ans = []
+        for attribute in getattr(statement, "attrs", []):
+            child = getattr(statement, attribute, None)
+            if isinstance(child, block_type):
+                ans.append(child)
+            if isinstance(child, javalang.tree.Node):
+                ans.extend(self._search_for_type(child, block_type))
+        return ans
+
+    def _tree_to_dict(self, tree: javalang.tree.Node) -> Dict[Type, int]:
+        ans: Dict[Type, int] = {}
+        node_type = type(tree)
+        if node_type in ans.keys():
+            ans.update({node_type: ans.get(node_type) + 1})
+        else:
+            ans.update({node_type: 1})
+        for attribute in getattr(tree, "attrs", []):
+            child = getattr(tree, attribute, None)
+            if not isinstance(child, javalang.tree.Node):
+                continue
+            ans.update(self._tree_to_dict(child))
+        return ans
+
+
+class JavaParameter(JavaEntity):
+    def __init__(self, parameter_name: str, parameter_type: str, method: JavaMethod):
+        super().__init__()
+        self.name: str = parameter_name
+        self.type_string: str = parameter_type
+        self.method: JavaMethod = method
+
+    @property
+    def type(self):
+        return self.method.java_class.java_file.get_type(self.name)
+
+    def compare(self, other: JavaParameter) -> Report:
+        return self.type.compare(other.type)
 
 
 class JavaMethod(JavaEntity):
     def __init__(self, java_method: javalang.tree.MethodDeclaration, java_class: JavaClass):
-        # self.java_method: javalang.tree.MethodDeclaration = java_method
+
         super().__init__()
+        self.java_method: javalang.tree.MethodDeclaration = java_method
+        self.name: str = self.java_method.name
         self.java_class: JavaClass = java_class
-        # self.body_blocks: list[javalang.tree.Expression] = []
-        self.return_type: JavaType = JavaType(getattr(java_method.return_type, "name", None), java_class)
+        self.local_variables: List[JavaVariable] = []
+        self.raw_statement_blocks: List[javalang.tree.Node] = java_method.body
+        self.statement_blocks: List[JavaStatementBlock] = []
+        self.return_type_str: str = getattr(java_method.return_type, "name", None)
         self.modifiers: List[JavaModifier] = [JavaModifier(m) for m in java_method.modifiers]
-        self.arguments: List[JavaVariable] = []
-        for parameter in java_method.parameters:
-            argument = JavaVariable(parameter)
-            argument.type = JavaType(parameter.type.name, java_class)
-            argument.modifiers = [JavaModifier(m) for m in parameter.modifiers]
+        self.arguments: List[JavaParameter] = []
+        self.handles_exceptions: bool = True if java_method.throws is not None else False
+        for parameter in self.java_method.parameters:
+            argument = JavaParameter(parameter.name, parameter.type.name, self)
             self.arguments.append(argument)
-        self.name: str = java_method.name
+
+    def continue_init(self):
+        for block in self.java_method.body:
+            java_block = JavaStatementBlock(block, self)
+            for var_declaration in java_block._search_for_type(block, javalang.tree.VariableDeclaration):
+                for declarator in var_declaration.declarators:
+                    var = JavaVariable(var_declaration, declarator, self.java_class.java_file)
+                    self.local_variables.append(var)
+            self.statement_blocks.append(java_block)
+
+    @property
+    def return_type(self):
+        return self.java_class.java_file.get_type(self.return_type_str)
 
     def compare(self, other: JavaMethod) -> Report:
         report = Report(0, 0, self, other)
@@ -181,29 +298,31 @@ class JavaMethod(JavaEntity):
             for argument in self.arguments:
                 max_cmp = max([argument.compare(other_argument) for other_argument in other.arguments])
                 report += max_cmp
+        if len(other.statement_blocks) > 0:
+            for block in self.statement_blocks:
+                max_cmp = max([block.compare(other_block) for other_block in other.statement_blocks])
+                report += max_cmp
         return_type_report = self.return_type.compare(other.return_type)
         report += return_type_report
         return report
+
+    def get_local_variable(self, var_name: str) -> Optional[JavaVariable]:
+        ans = list(filter(lambda x: True if x.name == var_name else False, self.local_variables))
+        if len(ans) > 0:
+            return ans[-1]
+        return None
 
 
 class JavaClass(JavaEntity):
     def __init__(self, java_class: javalang.tree.ClassDeclaration, java_file: JavaFile):
         super().__init__()
+        self.java_class: javalang.tree.ClassDeclaration = java_class
         self.java_file: JavaFile = java_file
         self.name: str = java_class.name
         # self.fields = []
         self.methods: List[JavaMethod] = []
         self.variables: List[JavaVariable] = []
         self.modifiers: List[JavaModifier] = [JavaModifier(m) for m in java_class.modifiers]
-        for field in java_class.fields:
-            for declarator in field.declarators:
-                if isinstance(declarator, javalang.tree.VariableDeclarator):
-                    variable = JavaVariable(declarator)
-                    variable.type = JavaType(field.type.name, self)
-                    variable.modifiers = [JavaModifier(m) for m in field.modifiers]
-                    self.variables.append(variable)
-        for method in java_class.methods:
-            self.methods.append(JavaMethod(method, self))
 
     def compare(self, other: JavaClass) -> Report:
         report = Report(0, 0, self, other)
@@ -230,8 +349,25 @@ class JavaClass(JavaEntity):
                 continue  # TODO is this better or Type("this", self)?
             else:
                 ans.extend(
-                    self.java_file.project.get_class(variable.type.package, variable.type.name).get_non_user_defined_types())
+                    self.java_file.project.get_class(variable.type.package,
+                                                     variable.type.name).get_non_user_defined_types())
         return ans
+
+    def get_variable(self, var_name: str):
+        ans = list(filter(lambda x: True if x.name == var_name else False, self.variables))
+        if len(ans) > 0:
+            return ans[-1]
+        return None
+
+    def continue_init(self):
+        for field in self.java_class.fields:
+            for declarator in field.declarators:
+                if isinstance(declarator, javalang.tree.VariableDeclarator):
+                    variable = JavaVariable(field, declarator, self.java_file)
+                    variable.modifiers = [JavaModifier(m) for m in field.modifiers]
+                    self.variables.append(variable)
+        for method in self.java_class.methods:
+            self.methods.append(JavaMethod(method, self))
 
 
 class JavaFile(JavaEntity):
@@ -243,9 +379,12 @@ class JavaFile(JavaEntity):
         compilation_unit = utils.get_ast(path)
         self.project: Project = project
         self.package: str = compilation_unit.package.name
-        self.imports: List[str] = [i.path for i in compilation_unit.imports]
+        self.wildcard_imports = [i.path for i in compilation_unit.imports if i.wildcard]
+        self.imports: List[str] = [i.path for i in compilation_unit.imports if not i.wildcard]
         self.import_types: List[str] = [i.split('.')[-1] for i in self.imports]
         self.classes: List[JavaClass] = [JavaClass(body, self) for body in compilation_unit.types]
+        for cls in self.classes:
+            self.project.user_types.update({JavaType(cls.name, self.package, self.project): []})
 
     def compare(self, other: JavaFile) -> Report:
         report = Report(0, 0, self, other)
@@ -254,6 +393,24 @@ class JavaFile(JavaEntity):
                 class_report = max(cl.compare(other_class) for other_class in other.classes)
                 report += class_report
         return report
+
+    def get_type(self, type_name: str) -> JavaType:
+        if not type_name:
+            return JavaType(None, None, self.project)
+        ans = self.project.get_user_type(self.package, type_name)
+        if ans is not None:
+            return ans
+        for imp in self.imports:
+            if re.match(rf"^.*\.{type_name}$", imp) is not None:
+                ans = self.project.get_user_type(imp.replace(f".{type_name}", ''), type_name)
+                if ans is not None:
+                    return ans
+                return JavaType(type_name, imp.replace(f".{type_name}", ''), self.project)
+        for wildcard_import in self.wildcard_imports:
+            ans = self.project.get_user_type(wildcard_import, type_name)
+            if ans is not None:
+                return ans
+        return JavaType(type_name, "", self.project)
 
 
 class Project(JavaEntity):
@@ -273,25 +430,38 @@ class Project(JavaEntity):
         self.java_files: List[JavaFile] = []
         java_files = utils.get_java_files(self.path)
         for file in java_files:
-            self.java_files.append(JavaFile(file, self))
+            java_file = JavaFile(file, self)
+            self.java_files.append(java_file)
+        for file in self.java_files:
+            for w_import in file.wildcard_imports:
+                file.import_types.extend(f.name_without_appendix for f in self.get_files_in_package(w_import))
+        for cls in self.classes:
+            cls.continue_init()
         for t in self.user_types.keys():
             type_class = self.get_class(t.package, t.name)
             self.user_types.update({t: type_class.get_non_user_defined_types()})
+        for method in self.methods:
+            method.continue_init()
 
     def get_file(self, package: str, class_name: str) -> Optional[JavaFile]:
         files = list(
-                 filter(lambda x: True if x.name_without_appendix == class_name and x.package == package else False,
-                        self.java_files))
+            filter(lambda x: True if x.name_without_appendix == class_name and x.package == package else False,
+                   self.java_files))
         if len(files) == 1:
             return files[0]
-        print(f"Project.get_file: Cannot find {package}.{class_name}!")
         return None
 
+    def get_files_in_package(self, package: str) -> List[JavaFile]:
+        return list(filter(lambda x: True if x.package == package else False, self.java_files))
+
+    def get_classes_in_package(self, package: str) -> List[JavaClass]:
+        ans = []
+        for file in self.get_files_in_package(package):
+            ans.extend(file.classes)
+        return ans
+
     def get_class(self, package: str, class_name: str) -> Optional[JavaClass]:
-        classes = getattr(self.get_file(package, class_name), "classes", None)
-        if not classes:
-            return None
-        found_classes = list(filter(lambda x: True if x.name == class_name else False, classes))
+        found_classes = list(filter(lambda x: True if x.name == class_name else False, self.classes))
         if len(found_classes) == 1:
             return found_classes[0]
         print(f"Project.get_class: Cannot find {package}.{class_name}!")
@@ -303,7 +473,7 @@ class Project(JavaEntity):
         )
         if len(types) == 1:
             return types[0]
-        print(f"Project.get_user_type: Cannot find {package}.{class_name}!")
+        # print(f"Project.get_user_type: Cannot find {package}.{class_name}!")
         return None
 
     @property
@@ -326,8 +496,10 @@ class Project(JavaEntity):
         other_unused_files: List[JavaFile] = other.java_files
         for package in self.packages:
             package_name = package.split(".")[-1]
-            files_in_package = list(filter(lambda x: True if package_name == x.package.split(".")[-1] else False, unused_files))
-            files_to_compare = list(filter(lambda x: True if package_name == x.package.split(".")[-1] else False, other_unused_files))
+            files_in_package = list(
+                filter(lambda x: True if package_name == x.package.split(".")[-1] else False, unused_files))
+            files_to_compare = list(
+                filter(lambda x: True if package_name == x.package.split(".")[-1] else False, other_unused_files))
             if len(files_to_compare) > 0:
                 for file in files_in_package:
                     unused_files.remove(file)
@@ -338,4 +510,3 @@ class Project(JavaEntity):
         for file in unused_files:
             report += max([file.compare(other_file) for other_file in other_unused_files])
         return report
-

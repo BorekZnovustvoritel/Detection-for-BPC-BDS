@@ -1,8 +1,8 @@
-from scan import Report, Project, JavaFile, JavaClass, JavaMethod, JavaVariable, JavaType
+from scan import Report, Project, JavaFile, JavaClass, JavaMethod, JavaVariable, JavaParameter, JavaStatementBlock
 from definitions import threshold
 
 
-types_to_compare = {Project, JavaFile, JavaClass, JavaMethod, JavaVariable}
+types_to_compare = {Project, JavaFile, JavaClass, JavaMethod, JavaVariable, JavaParameter, JavaStatementBlock}
 
 
 def print_path(report: Report, indent: int = 0) -> str:
