@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pathlib
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 from functools import total_ordering
 
 import javalang
@@ -58,6 +59,27 @@ class JavaEntity(ABC):
     def compare(self, other: JavaEntity) -> Report:
         pass
 
+    def compare_parts(self, other: JavaEntity, attrs: List[str]) -> Report:
+        if not isinstance(other, type(self)):
+            raise TypeError("Cannot compare different types of JavaEntity!")
+        report = Report(0, 0, self, other)
+        for attr in attrs:
+            self_attr_val = getattr(self, attr)
+            other_attr_val = getattr(other, attr)
+            if isinstance(self_attr_val, Iterable):
+                other_unused_values = other_attr_val
+                for value in self_attr_val:
+                    if len(other_unused_values) < 1:
+                        break
+                    max_match = max([value.compare(other_value) for other_value in other_unused_values])
+                    other_unused_values.remove(max_match.second)
+                    report += max_match
+            elif isinstance(self_attr_val, JavaEntity):
+                report += self_attr_val.compare(other_attr_val)
+            else:
+                raise ValueError(f"Cannot compare attribute '{attr}' of instance of '{type(self)}'!")
+        return report
+
 
 class JavaModifier(JavaEntity):
     def __init__(self, name: str):
@@ -81,6 +103,7 @@ class JavaType(JavaEntity):
             self.compatible_format = None
             return
         self.compatible_format: str = definitions.translation_dict.get(self.name)
+        print(self.name)
 
     @property
     def is_user_defined(self) -> bool:
@@ -136,10 +159,11 @@ class JavaVariable(JavaEntity):
         report = Report(0, 0, self, other)
         type_compare = self.type.compare(other.type)
         report += type_compare
-        if len(other.modifiers) > 0:
-            for modifier in self.modifiers:
-                modifier_report = max([modifier.compare(other_modifier) for other_modifier in other.modifiers])
-                report += modifier_report
+        report += self.compare_parts(other, ["modifiers"])
+        # if len(other.modifiers) > 0:
+        #     for modifier in self.modifiers:
+        #         modifier_report = max([modifier.compare(other_modifier) for other_modifier in other.modifiers])
+        #         report += modifier_report
         return report
 
 
@@ -260,7 +284,7 @@ class JavaParameter(JavaEntity):
         return self.method.java_class.java_file.get_type(self.name)
 
     def compare(self, other: JavaParameter) -> Report:
-        return self.type.compare(other.type)
+        return self.compare_parts(other, ["type", ])
 
 
 class JavaMethod(JavaEntity):
@@ -295,17 +319,18 @@ class JavaMethod(JavaEntity):
         return self.java_class.java_file.get_type(self.return_type_str)
 
     def compare(self, other: JavaMethod) -> Report:
-        report = Report(0, 0, self, other)
-        if len(other.arguments) > 0:
-            for argument in self.arguments:
-                max_cmp = max([argument.compare(other_argument) for other_argument in other.arguments])
-                report += max_cmp
-        if len(other.statement_blocks) > 0:
-            for block in self.statement_blocks:
-                max_cmp = max([block.compare(other_block) for other_block in other.statement_blocks])
-                report += max_cmp
-        return_type_report = self.return_type.compare(other.return_type)
-        report += return_type_report
+        report = self.compare_parts(other, ["arguments", "statement_blocks", "return_type"])
+        # report = Report(0, 0, self, other)
+        # if len(other.arguments) > 0:
+        #     for argument in self.arguments:
+        #         max_cmp = max([argument.compare(other_argument) for other_argument in other.arguments])
+        #         report += max_cmp
+        # if len(other.statement_blocks) > 0:
+        #     for block in self.statement_blocks:
+        #         max_cmp = max([block.compare(other_block) for other_block in other.statement_blocks])
+        #         report += max_cmp
+        # return_type_report = self.return_type.compare(other.return_type)
+        # report += return_type_report
         return report
 
     def get_local_variable(self, var_name: str) -> Optional[JavaVariable]:
@@ -327,19 +352,20 @@ class JavaClass(JavaEntity):
         self.modifiers: List[JavaModifier] = [JavaModifier(m) for m in java_class.modifiers]
 
     def compare(self, other: JavaClass) -> Report:
-        report = Report(0, 0, self, other)
-        if len(other.methods) > 0:
-            for method in self.methods:
-                method_report = max([method.compare(other_method) for other_method in other.methods])
-                report += method_report
-        if len(other.variables) > 0:
-            for variable in self.variables:
-                variable_report = max([variable.compare(other_variable) for other_variable in other.variables])
-                report += variable_report
-        if len(other.modifiers) > 0:
-            for modifier in self.modifiers:
-                modifier_report = max([modifier.compare(other_modifier) for other_modifier in other.modifiers])
-                report += modifier_report
+        report = self.compare_parts(other, ["methods", "variables", "modifiers"])
+        # report = Report(0, 0, self, other)
+        # if len(other.methods) > 0:
+        #     for method in self.methods:
+        #         method_report = max([method.compare(other_method) for other_method in other.methods])
+        #         report += method_report
+        # if len(other.variables) > 0:
+        #     for variable in self.variables:
+        #         variable_report = max([variable.compare(other_variable) for other_variable in other.variables])
+        #         report += variable_report
+        # if len(other.modifiers) > 0:
+        #     for modifier in self.modifiers:
+        #         modifier_report = max([modifier.compare(other_modifier) for other_modifier in other.modifiers])
+        #         report += modifier_report
         return report
 
     def get_non_user_defined_types(self) -> List[JavaType]:
@@ -389,11 +415,12 @@ class JavaFile(JavaEntity):
             self.project.user_types.update({JavaType(cls.name, self.package, self.project): []})
 
     def compare(self, other: JavaFile) -> Report:
-        report = Report(0, 0, self, other)
-        if len(other.classes) > 0:
-            for cl in self.classes:
-                class_report = max(cl.compare(other_class) for other_class in other.classes)
-                report += class_report
+        report = self.compare_parts(other, ["classes", ])
+        # report = Report(0, 0, self, other)
+        # if len(other.classes) > 0:
+        #     for cl in self.classes:
+        #         class_report = max(cl.compare(other_class) for other_class in other.classes)
+        #         report += class_report
         return report
 
     def get_type(self, type_name: str) -> JavaType:
