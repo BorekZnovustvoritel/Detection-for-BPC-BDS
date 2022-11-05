@@ -29,11 +29,17 @@ if __name__ == "__main__":
     for project_path in projects_dir_path.iterdir():
         projects.append(Project(project_path))
 
+    after_parsing = datetime.datetime.now()
+    print(f"Parsing took {after_parsing - start}.")
+
     reports = []
     for index, project in enumerate(projects):
         reports.extend([project.compare(other) for other in projects[index+1:]])
-    print(f"Parsing and comparing took {datetime.datetime.now() - start}.")
+    print(f"Comparing took {datetime.datetime.now() - after_parsing}.")
 
     for report in reports:
         print(f"Comparing projects: '{report.first.path}' and '{report.second.path}'")
         print(print_path(report))
+
+    # report = reports[0].child_reports[18].child_reports[0].child_reports[1].child_reports[0]
+    # print(report)

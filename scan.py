@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pathlib
+from copy import copy
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
 from functools import total_ordering
@@ -27,10 +28,10 @@ class Report:
         self.child_reports: List[Report] = []
 
     def __lt__(self, other: Report):
-        return self.probability < other.probability
+        return self.probability < other.probability if self.probability != other.probability else self.weight < other.weight
 
     def __eq__(self, other: Report):
-        return self.probability == other.probability
+        return self.probability == other.probability and self.weight == other.weight
 
     def __repr__(self):
         return f"< Report, probability: {self.probability}, comparing entities: {self.first.name}, " \
@@ -59,25 +60,30 @@ class JavaEntity(ABC):
     def compare(self, other: JavaEntity) -> Report:
         pass
 
-    def compare_parts(self, other: JavaEntity, attrs: List[str]) -> Report:
+    def compare_parts(self, other: JavaEntity, attr: str) -> Report:
         if not isinstance(other, type(self)):
             raise TypeError("Cannot compare different types of JavaEntity!")
         report = Report(0, 0, self, other)
-        for attr in attrs:
-            self_attr_val = getattr(self, attr)
-            other_attr_val = getattr(other, attr)
-            if isinstance(self_attr_val, Iterable):
-                other_unused_values = other_attr_val
+        self_attr_val = getattr(self, attr, None)
+        other_attr_val = getattr(other, attr, None)
+        if self_attr_val is None:
+            raise ValueError(f"Instance of '{type(self)}' does not have attribute '{attr}'!")
+        if isinstance(self_attr_val, Iterable):
+            other_unused_values = copy(other_attr_val)
+            if len(other_unused_values) > 0:
                 for value in self_attr_val:
                     if len(other_unused_values) < 1:
                         break
                     max_match = max([value.compare(other_value) for other_value in other_unused_values])
-                    other_unused_values.remove(max_match.second)
                     report += max_match
-            elif isinstance(self_attr_val, JavaEntity):
-                report += self_attr_val.compare(other_attr_val)
-            else:
-                raise ValueError(f"Cannot compare attribute '{attr}' of instance of '{type(self)}'!")
+                    if report.probability > definitions.threshold:
+                        other_unused_values.remove(max_match.second)
+                report += Report(0, len(other_unused_values) * 10, self, other)
+        elif isinstance(self_attr_val, JavaEntity):
+            another_report = self_attr_val.compare(other_attr_val)
+            report += another_report
+        else:
+            raise ValueError(f"Cannot compare attribute '{attr}' of instance of '{type(self)}'!")
         return report
 
 
@@ -103,7 +109,6 @@ class JavaType(JavaEntity):
             self.compatible_format = None
             return
         self.compatible_format: str = definitions.translation_dict.get(self.name)
-        print(self.name)
 
     @property
     def is_user_defined(self) -> bool:
@@ -127,11 +132,7 @@ class JavaType(JavaEntity):
             elif self.compatible_format is not None and self.compatible_format == other.compatible_format:
                 return Report(50, 10, self, other)
         else:
-            report = Report(0, 0, self, other)
-            other_initialized_type = other.project.get_user_type(other.package, other.name)
-            for t in self.project.get_user_type(self.package, self.name).non_user_defined_types:
-                subtype_report = max([t.compare(o) for o in other_initialized_type.non_user_defined_types])
-                report += subtype_report
+            report = self.compare_parts(other, "non_user_defined_types")
             return report
         return Report(0, 10, self, other)
 
@@ -156,14 +157,8 @@ class JavaVariable(JavaEntity):
         return self.java_file.get_type(self.type_name)
 
     def compare(self, other: JavaVariable) -> Report:
-        report = Report(0, 0, self, other)
-        type_compare = self.type.compare(other.type)
-        report += type_compare
-        report += self.compare_parts(other, ["modifiers"])
-        # if len(other.modifiers) > 0:
-        #     for modifier in self.modifiers:
-        #         modifier_report = max([modifier.compare(other_modifier) for other_modifier in other.modifiers])
-        #         report += modifier_report
+        report = self.compare_parts(other, "modifiers")
+        report += self.compare_parts(other, "type")
         return report
 
 
@@ -187,7 +182,11 @@ class JavaMethodInvocation(JavaEntity):
     @property
     def method_referenced(self) -> Optional[JavaMethod]:
         qualifier = self.qualifier
-        if qualifier:
+        if not qualifier:
+            local_methods = list(filter(lambda x: True if self.name == x.name else False, self.statement.java_method.java_class.methods))
+            if len(local_methods) == 1:
+                return local_methods[0]
+        else:
             t = qualifier.type
             if t.is_user_defined:
                 cls = list(filter(lambda x: True if x.name == t.name else False,
@@ -200,7 +199,7 @@ class JavaMethodInvocation(JavaEntity):
                     return None
                 return m[0]
 
-    def compare(self, other: JavaEntity) -> Report:
+    def compare(self, other: JavaEntity):
         raise NotImplementedError("This type is helper object for JavaStatementBlock only.")
         pass
 
@@ -281,10 +280,10 @@ class JavaParameter(JavaEntity):
 
     @property
     def type(self):
-        return self.method.java_class.java_file.get_type(self.name)
+        return self.method.java_class.java_file.get_type(self.type_string)
 
     def compare(self, other: JavaParameter) -> Report:
-        return self.compare_parts(other, ["type", ])
+        return self.compare_parts(other, "type")
 
 
 class JavaMethod(JavaEntity):
@@ -319,18 +318,10 @@ class JavaMethod(JavaEntity):
         return self.java_class.java_file.get_type(self.return_type_str)
 
     def compare(self, other: JavaMethod) -> Report:
-        report = self.compare_parts(other, ["arguments", "statement_blocks", "return_type"])
-        # report = Report(0, 0, self, other)
-        # if len(other.arguments) > 0:
-        #     for argument in self.arguments:
-        #         max_cmp = max([argument.compare(other_argument) for other_argument in other.arguments])
-        #         report += max_cmp
-        # if len(other.statement_blocks) > 0:
-        #     for block in self.statement_blocks:
-        #         max_cmp = max([block.compare(other_block) for other_block in other.statement_blocks])
-        #         report += max_cmp
-        # return_type_report = self.return_type.compare(other.return_type)
-        # report += return_type_report
+        report = self.compare_parts(other, "return_type")
+        report += self.compare_parts(other, "arguments")
+        if report.probability > definitions.method_interface_threshold:
+            report += self.compare_parts(other, "statement_blocks")
         return report
 
     def get_local_variable(self, var_name: str) -> Optional[JavaVariable]:
@@ -346,26 +337,14 @@ class JavaClass(JavaEntity):
         self.java_class: javalang.tree.ClassDeclaration = java_class
         self.java_file: JavaFile = java_file
         self.name: str = java_class.name
-        # self.fields = []
         self.methods: List[JavaMethod] = []
         self.variables: List[JavaVariable] = []
         self.modifiers: List[JavaModifier] = [JavaModifier(m) for m in java_class.modifiers]
 
     def compare(self, other: JavaClass) -> Report:
-        report = self.compare_parts(other, ["methods", "variables", "modifiers"])
-        # report = Report(0, 0, self, other)
-        # if len(other.methods) > 0:
-        #     for method in self.methods:
-        #         method_report = max([method.compare(other_method) for other_method in other.methods])
-        #         report += method_report
-        # if len(other.variables) > 0:
-        #     for variable in self.variables:
-        #         variable_report = max([variable.compare(other_variable) for other_variable in other.variables])
-        #         report += variable_report
-        # if len(other.modifiers) > 0:
-        #     for modifier in self.modifiers:
-        #         modifier_report = max([modifier.compare(other_modifier) for other_modifier in other.modifiers])
-        #         report += modifier_report
+        report = self.compare_parts(other, "modifiers")
+        report += self.compare_parts(other, "variables")
+        report += self.compare_parts(other, "methods")
         return report
 
     def get_non_user_defined_types(self) -> List[JavaType]:
@@ -415,12 +394,7 @@ class JavaFile(JavaEntity):
             self.project.user_types.update({JavaType(cls.name, self.package, self.project): []})
 
     def compare(self, other: JavaFile) -> Report:
-        report = self.compare_parts(other, ["classes", ])
-        # report = Report(0, 0, self, other)
-        # if len(other.classes) > 0:
-        #     for cl in self.classes:
-        #         class_report = max(cl.compare(other_class) for other_class in other.classes)
-        #         report += class_report
+        report = self.compare_parts(other, "classes")
         return report
 
     def get_type(self, type_name: str) -> JavaType:
@@ -502,7 +476,6 @@ class Project(JavaEntity):
         )
         if len(types) == 1:
             return types[0]
-        # print(f"Project.get_user_type: Cannot find {package}.{class_name}!")
         return None
 
     @property
@@ -521,8 +494,8 @@ class Project(JavaEntity):
 
     def compare(self, other: Project) -> Report:
         report = Report(0, 0, self, other)
-        unused_files: List[JavaFile] = self.java_files
-        other_unused_files: List[JavaFile] = other.java_files
+        unused_files: List[JavaFile] = copy(self.java_files)
+        other_unused_files: List[JavaFile] = copy(other.java_files)
         for package in self.packages:
             package_name = package.split(".")[-1]
             files_in_package = list(
@@ -534,7 +507,7 @@ class Project(JavaEntity):
                     unused_files.remove(file)
                     max_report = max([file.compare(other_file) for other_file in files_to_compare])
                     report += max_report
-                    if max_report.probability > definitions.threshold and max_report.second in other_unused_files:
+                    if max_report.probability > definitions.threshold:
                         other_unused_files.remove(max_report.second)
         for file in unused_files:
             report += max([file.compare(other_file) for other_file in other_unused_files])

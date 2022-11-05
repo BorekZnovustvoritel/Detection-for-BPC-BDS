@@ -27,3 +27,4 @@ node_translation_dict = {
 threshold = 30
 projects_dir = "projects"
 env_file = ".env"
+method_interface_threshold = 80
