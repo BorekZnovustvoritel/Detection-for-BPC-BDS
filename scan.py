@@ -177,12 +177,14 @@ class JavaMethodInvocation(JavaEntity):
                 return m[0]
 
     def compare(self, other: JavaEntity) -> Report:
+        raise NotImplementedError("This type is helper object for JavaStatementBlock only.")
         pass
 
 
 class JavaStatementBlock(JavaEntity):
     def __init__(self, statement: javalang.tree.Statement, java_method: JavaMethod):
         super().__init__()
+        self.name = f"Statement {statement.position}"
         self.java_method = java_method
         self.invoked_methods: List[JavaMethodInvocation] = [JavaMethodInvocation(m, self) for m in
                                                             self._search_for_type(statement,
