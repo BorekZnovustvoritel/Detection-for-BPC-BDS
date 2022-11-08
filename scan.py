@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pathlib
+from functools import cached_property
 from copy import copy
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
@@ -110,11 +111,11 @@ class JavaType(JavaEntity):
             return
         self.compatible_format: str = definitions.translation_dict.get(self.name)
 
-    @property
+    @cached_property
     def is_user_defined(self) -> bool:
         return True if self in self.project.user_types else False
 
-    @property
+    @cached_property
     def non_user_defined_types(self) -> List[JavaType]:
         return self.project.user_types.get(self)
 
@@ -152,7 +153,7 @@ class JavaVariable(JavaEntity):
         self.modifiers: List[JavaModifier] = [JavaModifier(m) for m in variable_declaration.modifiers]
         self.type_name: str = variable_declaration.type.name
 
-    @property
+    @cached_property
     def type(self) -> JavaType:
         return self.java_file.get_type(self.type_name)
 
@@ -169,7 +170,7 @@ class JavaMethodInvocation(JavaEntity):
         self.qualifier_str = method_invocation.qualifier
         self.name = method_invocation.member
 
-    @property
+    @cached_property
     def qualifier(self) -> Optional[JavaVariable]:
         if self.qualifier_str:
             qualifier = self.statement.java_method.get_local_variable(self.qualifier_str)
@@ -179,7 +180,7 @@ class JavaMethodInvocation(JavaEntity):
         else:
             return None
 
-    @property
+    @cached_property
     def method_referenced(self) -> Optional[JavaMethod]:
         qualifier = self.qualifier
         if not qualifier:
@@ -216,7 +217,7 @@ class JavaStatementBlock(JavaEntity):
         for statement_block in self.raw_statements_from_invocations:
             self.parts.update(self._tree_to_dict(statement_block))
 
-    @property
+    @cached_property
     def raw_statements_from_invocations(self) -> List[javalang.tree.Node]:
         ans = []
         for invoked_method in self.invoked_methods:
@@ -278,7 +279,7 @@ class JavaParameter(JavaEntity):
         self.type_string: str = parameter_type
         self.method: JavaMethod = method
 
-    @property
+    @cached_property
     def type(self):
         return self.method.java_class.java_file.get_type(self.type_string)
 
@@ -313,7 +314,7 @@ class JavaMethod(JavaEntity):
                     self.local_variables.append(var)
             self.statement_blocks.append(java_block)
 
-    @property
+    @cached_property
     def return_type(self):
         return self.java_class.java_file.get_type(self.return_type_str)
 
@@ -478,14 +479,14 @@ class Project(JavaEntity):
             return types[0]
         return None
 
-    @property
+    @cached_property
     def classes(self):
         ans = []
         for file in self.java_files:
             ans.extend(file.classes)
         return ans
 
-    @property
+    @cached_property
     def methods(self):
         ans = []
         for cl in self.classes:
