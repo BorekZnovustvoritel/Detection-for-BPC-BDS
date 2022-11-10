@@ -163,12 +163,11 @@ class JavaVariable(JavaEntity):
         return report
 
 
-class JavaMethodInvocation(JavaEntity):
+class JavaMethodInvocation:
     def __init__(self, method_invocation: javalang.tree.MethodInvocation, statement: JavaStatementBlock):
-        super().__init__()
-        self.statement = statement
-        self.qualifier_str = method_invocation.qualifier
-        self.name = method_invocation.member
+        self.statement: JavaStatementBlock = statement
+        self.qualifier_str: str = method_invocation.qualifier
+        self.name: str = method_invocation.member
 
     @cached_property
     def qualifier(self) -> Optional[JavaVariable]:
@@ -184,7 +183,8 @@ class JavaMethodInvocation(JavaEntity):
     def method_referenced(self) -> Optional[JavaMethod]:
         qualifier = self.qualifier
         if not qualifier:
-            local_methods = list(filter(lambda x: True if self.name == x.name else False, self.statement.java_method.java_class.methods))
+            local_methods = list(
+                filter(lambda x: True if self.name == x.name else False, self.statement.java_method.java_class.methods))
             if len(local_methods) == 1:
                 return local_methods[0]
         else:
@@ -200,16 +200,18 @@ class JavaMethodInvocation(JavaEntity):
                     return None
                 return m[0]
 
-    def compare(self, other: JavaEntity):
-        raise NotImplementedError("This type is helper object for JavaStatementBlock only.")
-        pass
-
 
 class JavaStatementBlock(JavaEntity):
     def __init__(self, statement: javalang.tree.Statement, java_method: JavaMethod):
         super().__init__()
-        self.name = f"Statement {statement.position}"
-        self.java_method = java_method
+        self.name: str = f"Statement {statement.position}"
+        self.java_method: JavaMethod = java_method
+        self.local_variables: List[JavaVariable] = []
+        for declaration in self._search_for_type(statement, javalang.tree.VariableDeclaration):
+            for declarator in declaration.declarators:
+                var = JavaVariable(declaration, declarator, self.java_method.java_class.java_file)
+                self.local_variables.append(var)
+
         self.invoked_methods: List[JavaMethodInvocation] = [JavaMethodInvocation(m, self) for m in
                                                             self._search_for_type(statement,
                                                                                   javalang.tree.MethodInvocation)]
@@ -233,7 +235,8 @@ class JavaStatementBlock(JavaEntity):
             other_occurrences = other.parts.get(node_type, 0)
             if other_occurrences > 0:
                 report += Report(
-                    int(100 - 100 * (abs(self_occurrences - other_occurrences) / (self_occurrences + other_occurrences))),
+                    int(100 - 100 * (
+                                abs(self_occurrences - other_occurrences) / (self_occurrences + other_occurrences))),
                     10, self, other)
             else:
                 backup_node_type = definitions.node_translation_dict.get(node_type, None)
@@ -241,13 +244,13 @@ class JavaStatementBlock(JavaEntity):
                     other_occurrences = other.parts.get(backup_node_type, 0)
                     if other_occurrences > 0:
                         report += Report(int(50 - 50 * (
-                                    abs(self_occurrences - other_occurrences) / (self_occurrences + other_occurrences))),
+                                abs(self_occurrences - other_occurrences) / (self_occurrences + other_occurrences))),
                                          10, self, other)
                 else:
                     report += Report(0, 10, self, other)
         return report
 
-    def _search_for_type(self, statement: javalang.tree.Node, block_type: Type) -> List:
+    def _search_for_type(self, statement: javalang.tree.Node, block_type: Type) -> List:  # TODO use once
         ans = []
         for attribute in getattr(statement, "attrs", []):
             child = getattr(statement, attribute, None)
@@ -289,12 +292,10 @@ class JavaParameter(JavaEntity):
 
 class JavaMethod(JavaEntity):
     def __init__(self, java_method: javalang.tree.MethodDeclaration, java_class: JavaClass):
-
         super().__init__()
         self.java_method: javalang.tree.MethodDeclaration = java_method
         self.name: str = self.java_method.name
         self.java_class: JavaClass = java_class
-        self.local_variables: List[JavaVariable] = []
         self.raw_statement_blocks: List[javalang.tree.Node] = java_method.body
         self.statement_blocks: List[JavaStatementBlock] = []
         self.return_type_str: str = getattr(java_method.return_type, "name", None)
@@ -307,12 +308,14 @@ class JavaMethod(JavaEntity):
 
     def continue_init(self):
         for block in self.java_method.body:
-            java_block = JavaStatementBlock(block, self)
-            for var_declaration in java_block._search_for_type(block, javalang.tree.VariableDeclaration):
-                for declarator in var_declaration.declarators:
-                    var = JavaVariable(var_declaration, declarator, self.java_class.java_file)
-                    self.local_variables.append(var)
-            self.statement_blocks.append(java_block)
+            self.statement_blocks.append(JavaStatementBlock(block, self))
+
+    @cached_property
+    def local_variables(self) -> List[JavaVariable]:
+        ans = []
+        for statement_block in self.statement_blocks:
+            ans.extend(statement_block.local_variables)
+        return ans
 
     @cached_property
     def return_type(self):
@@ -494,22 +497,5 @@ class Project(JavaEntity):
         return ans
 
     def compare(self, other: Project) -> Report:
-        report = Report(0, 0, self, other)
-        unused_files: List[JavaFile] = copy(self.java_files)
-        other_unused_files: List[JavaFile] = copy(other.java_files)
-        for package in self.packages:
-            package_name = package.split(".")[-1]
-            files_in_package = list(
-                filter(lambda x: True if package_name == x.package.split(".")[-1] else False, unused_files))
-            files_to_compare = list(
-                filter(lambda x: True if package_name == x.package.split(".")[-1] else False, other_unused_files))
-            if len(files_to_compare) > 0:
-                for file in files_in_package:
-                    unused_files.remove(file)
-                    max_report = max([file.compare(other_file) for other_file in files_to_compare])
-                    report += max_report
-                    if max_report.probability > definitions.threshold:
-                        other_unused_files.remove(max_report.second)
-        for file in unused_files:
-            report += max([file.compare(other_file) for other_file in other_unused_files])
+        report = self.compare_parts(other, "java_files")
         return report
