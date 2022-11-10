@@ -207,17 +207,16 @@ class JavaStatementBlock(JavaEntity):
         self.name: str = f"Statement {statement.position}"
         self.java_method: JavaMethod = java_method
         self.local_variables: List[JavaVariable] = []
-        for declaration in self._search_for_type(statement, javalang.tree.VariableDeclaration):
+        searched_nodes = self._search_for_types(statement,
+                                                {javalang.tree.VariableDeclaration, javalang.tree.MethodInvocation})
+        for declaration in searched_nodes.get(javalang.tree.VariableDeclaration, []):
             for declarator in declaration.declarators:
                 var = JavaVariable(declaration, declarator, self.java_method.java_class.java_file)
                 self.local_variables.append(var)
 
         self.invoked_methods: List[JavaMethodInvocation] = [JavaMethodInvocation(m, self) for m in
-                                                            self._search_for_type(statement,
-                                                                                  javalang.tree.MethodInvocation)]
+                                                            searched_nodes.get(javalang.tree.MethodInvocation, [])]
         self.parts: Dict[Type, int] = self._tree_to_dict(statement)
-        for statement_block in self.raw_statements_from_invocations:
-            self.parts.update(self._tree_to_dict(statement_block))
 
     @cached_property
     def raw_statements_from_invocations(self) -> List[javalang.tree.Node]:
@@ -228,20 +227,32 @@ class JavaStatementBlock(JavaEntity):
                 ans.extend(m.raw_statement_blocks)
         return ans
 
+    @cached_property
+    def all_parts(self):
+        parts_copy = copy(self.parts)
+        for statement in self.raw_statements_from_invocations:
+            dict_to_add = self._tree_to_dict(statement)
+            for key in dict_to_add.keys():
+                if key in parts_copy.keys():
+                    parts_copy.update({key: parts_copy[key] + 1})
+                else:
+                    parts_copy.update({key: 1})
+        return parts_copy
+
     def compare(self, other: JavaStatementBlock) -> Report:
         report = Report(0, 0, self, other)
-        for node_type in self.parts:
-            self_occurrences = self.parts[node_type]
-            other_occurrences = other.parts.get(node_type, 0)
+        for node_type in self.all_parts:
+            self_occurrences = self.all_parts[node_type]
+            other_occurrences = other.all_parts.get(node_type, 0)
             if other_occurrences > 0:
                 report += Report(
                     int(100 - 100 * (
-                                abs(self_occurrences - other_occurrences) / (self_occurrences + other_occurrences))),
+                            abs(self_occurrences - other_occurrences) / (self_occurrences + other_occurrences))),
                     10, self, other)
             else:
                 backup_node_type = definitions.node_translation_dict.get(node_type, None)
                 if backup_node_type is not None:
-                    other_occurrences = other.parts.get(backup_node_type, 0)
+                    other_occurrences = other.all_parts.get(backup_node_type, 0)
                     if other_occurrences > 0:
                         report += Report(int(50 - 50 * (
                                 abs(self_occurrences - other_occurrences) / (self_occurrences + other_occurrences))),
@@ -250,14 +261,26 @@ class JavaStatementBlock(JavaEntity):
                     report += Report(0, 10, self, other)
         return report
 
-    def _search_for_type(self, statement: javalang.tree.Node, block_type: Type) -> List:  # TODO use once
-        ans = []
+    def _search_for_types(self, statement: javalang.tree.Node, block_types: Set[Type]) -> Dict[
+        Type, List[javalang.tree.Node]]:
+        ans = {}
+        if not isinstance(statement, javalang.tree.Node):
+            return ans
+        node_type = type(statement)
+        if node_type in block_types:
+            if node_type in ans.keys():
+                ans.update({node_type: ans[node_type] + [statement, ]})
+            else:
+                ans.update({node_type: [statement, ]})
         for attribute in getattr(statement, "attrs", []):
             child = getattr(statement, attribute, None)
-            if isinstance(child, block_type):
-                ans.append(child)
             if isinstance(child, javalang.tree.Node):
-                ans.extend(self._search_for_type(child, block_type))
+                dict_to_add = self._search_for_types(child, block_types)
+                for key in dict_to_add:
+                    if key in ans.keys():
+                        ans.update({key: ans[key] + dict_to_add[key]})
+                    else:
+                        ans.update(dict_to_add)
         return ans
 
     def _tree_to_dict(self, tree: javalang.tree.Node) -> Dict[Type, int]:
@@ -271,7 +294,11 @@ class JavaStatementBlock(JavaEntity):
             child = getattr(tree, attribute, None)
             if not isinstance(child, javalang.tree.Node):
                 continue
-            ans.update(self._tree_to_dict(child))
+            for key in self._tree_to_dict(child):
+                if key in ans.keys():
+                    ans.update({key: ans[key] + 1})
+                else:
+                    ans.update({key: 1})
         return ans
 
 

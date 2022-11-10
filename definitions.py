@@ -24,7 +24,7 @@ node_translation_dict = {
     javalang.tree.WhileStatement: javalang.tree.ForStatement,
     javalang.tree.SwitchStatementCase: javalang.tree.IfStatement
 }
-threshold = 30
+threshold = 70
 projects_dir = "projects"
 env_file = ".env"
 method_interface_threshold = 80
