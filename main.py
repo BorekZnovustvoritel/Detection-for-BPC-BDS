@@ -4,7 +4,7 @@ from gitlab import clone_projects
 from definitions import env_file, projects_dir
 from utils import get_self_project_root
 from scan import Project
-from compare import print_path
+from compare import print_path, create_heat_map, create_excel
 
 from pathlib import Path
 
@@ -37,9 +37,8 @@ if __name__ == "__main__":
         reports.extend([project.compare(other) for other in projects[index+1:]])
     print(f"Comparing took {datetime.datetime.now() - after_parsing}.")
 
-    for report in reports:
-        print(f"Comparing projects: '{report.first.path}' and '{report.second.path}'")
-        print(print_path(report))
+    # for report in reports:
+    #     print(f"Comparing projects: '{report.first.path}' and '{report.second.path}'")
+    #     print(print_path(report))
+    create_excel(create_heat_map(reports))
 
-    # report = reports[0].child_reports[18].child_reports[0].child_reports[1].child_reports[0]
-    # print(report)

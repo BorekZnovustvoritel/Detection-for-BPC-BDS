@@ -334,6 +334,8 @@ class JavaMethod(JavaEntity):
             self.arguments.append(argument)
 
     def continue_init(self):
+        if not self.java_method.body:
+            return
         for block in self.java_method.body:
             self.statement_blocks.append(JavaStatementBlock(block, self))
 
@@ -384,7 +386,7 @@ class JavaClass(JavaEntity):
             if not variable.type.is_user_defined:
                 ans.append(variable)
             elif variable.type.name == self.name:
-                continue  # TODO is this better or Type("this", self)?
+                continue
             else:
                 ans.extend(
                     self.java_file.project.get_class(variable.type.package,
@@ -450,7 +452,7 @@ class JavaFile(JavaEntity):
 class Project(JavaEntity):
     def __init__(self, path: Union[str, pathlib.Path]):
         super().__init__()
-        self.path: pathlib.Path = None
+        self.path: pathlib.Path
         if not isinstance(path, pathlib.Path):
             self.path = pathlib.Path(path)
         else:
