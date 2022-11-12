@@ -9,14 +9,11 @@ from functools import total_ordering
 
 import javalang
 import javalang.tree
-import pprint
 from typing import List, Union, Set, Optional, Dict, Type
 import re
 
 import definitions
 import utils
-
-pp = pprint.PrettyPrinter(indent=4)
 
 
 @total_ordering
@@ -219,31 +216,23 @@ class JavaStatementBlock(JavaEntity):
         self.parts: Dict[Type, int] = self._tree_to_dict(statement)
 
     @cached_property
-    def raw_statements_from_invocations(self) -> List[javalang.tree.Node]:
+    def statements_from_invocations(self) -> List[JavaStatementBlock]:
         ans = []
         for invoked_method in self.invoked_methods:
             m = invoked_method.method_referenced
+            if m == self.java_method:
+                continue
             if m is not None:
-                ans.extend(m.raw_statement_blocks)
+                ans.extend([JavaStatementBlock(s, m) for s in m.raw_statement_blocks if not
+                (isinstance(s, javalang.tree.Statement) and len(s.attrs) == 1)
+                            ])
         return ans
-
-    @cached_property
-    def all_parts(self):
-        parts_copy = copy(self.parts)
-        for statement in self.raw_statements_from_invocations:
-            dict_to_add = self._tree_to_dict(statement)
-            for key in dict_to_add.keys():
-                if key in parts_copy.keys():
-                    parts_copy.update({key: parts_copy[key] + 1})
-                else:
-                    parts_copy.update({key: 1})
-        return parts_copy
 
     def compare(self, other: JavaStatementBlock) -> Report:
         report = Report(0, 0, self, other)
-        for node_type in self.all_parts:
-            self_occurrences = self.all_parts[node_type]
-            other_occurrences = other.all_parts.get(node_type, 0)
+        for node_type in self.parts:
+            self_occurrences = self.parts[node_type]
+            other_occurrences = other.parts.get(node_type, 0)
             if other_occurrences > 0:
                 report += Report(
                     int(100 - 100 * (
@@ -252,7 +241,7 @@ class JavaStatementBlock(JavaEntity):
             else:
                 backup_node_type = definitions.node_translation_dict.get(node_type, None)
                 if backup_node_type is not None:
-                    other_occurrences = other.all_parts.get(backup_node_type, 0)
+                    other_occurrences = other.parts.get(backup_node_type, 0)
                     if other_occurrences > 0:
                         report += Report(int(50 - 50 * (
                                 abs(self_occurrences - other_occurrences) / (self_occurrences + other_occurrences))),
@@ -328,13 +317,14 @@ class JavaMethod(JavaEntity):
         self.return_type_str: str = getattr(java_method.return_type, "name", None)
         self.modifiers: List[JavaModifier] = [JavaModifier(m) for m in java_method.modifiers]
         self.arguments: List[JavaParameter] = []
-        # self.handles_exceptions: bool = True if java_method.throws is not None else False
         for parameter in self.java_method.parameters:
             argument = JavaParameter(parameter.name, parameter.type.name, self)
             self.arguments.append(argument)
         if not self.java_method.body:
             return
         for block in self.java_method.body:
+            if isinstance(block, javalang.tree.Statement) and len(block.attrs) == 1:
+                return
             self.statement_blocks.append(JavaStatementBlock(block, self))
 
     @cached_property
@@ -352,7 +342,7 @@ class JavaMethod(JavaEntity):
         report = self.compare_parts(other, "return_type")
         report += self.compare_parts(other, "arguments")
         if report.probability > definitions.method_interface_threshold:
-            report += self.compare_parts(other, "statement_blocks")
+            report += self.compare_parts(other, "all_blocks")
         return report
 
     def get_local_variable(self, var_name: str) -> Optional[JavaVariable]:
@@ -360,6 +350,17 @@ class JavaMethod(JavaEntity):
         if len(ans) > 0:
             return ans[-1]
         return None
+
+    @cached_property
+    def statements_from_invocations(self) -> List[JavaStatementBlock]:
+        ans = []
+        for block in self.statement_blocks:
+            ans.extend(block.statements_from_invocations)
+        return ans
+
+    @cached_property
+    def all_blocks(self):
+        return self.statement_blocks + self.statements_from_invocations
 
 
 class JavaClass(JavaEntity):
