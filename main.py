@@ -37,8 +37,8 @@ if __name__ == "__main__":
         reports.extend([project.compare(other) for other in projects[index+1:]])
     print(f"Comparing took {datetime.datetime.now() - after_parsing}.")
 
-    # for report in reports:
-    #     print(f"Comparing projects: '{report.first.path}' and '{report.second.path}'")
-    #     print(print_path(report))
+    for report in reports:
+        print(f"Comparing projects: '{report.first.path}' and '{report.second.path}'")
+        print(print_path(report))
     create_excel(create_heat_map(reports))
 

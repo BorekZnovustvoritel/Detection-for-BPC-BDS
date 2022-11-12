@@ -14,6 +14,8 @@ translation_dict = {
     'Character': 'String',
     'ArrayList': 'List',
     'LinkedList': 'List',
+    'HashSet': 'Set',
+    'TreeSet': 'Set',
     'HashMap': 'Map',
     'TreeMap': 'Map',
     'FloatProperty': 'DoubleProperty',

@@ -328,12 +328,10 @@ class JavaMethod(JavaEntity):
         self.return_type_str: str = getattr(java_method.return_type, "name", None)
         self.modifiers: List[JavaModifier] = [JavaModifier(m) for m in java_method.modifiers]
         self.arguments: List[JavaParameter] = []
-        self.handles_exceptions: bool = True if java_method.throws is not None else False
+        # self.handles_exceptions: bool = True if java_method.throws is not None else False
         for parameter in self.java_method.parameters:
             argument = JavaParameter(parameter.name, parameter.type.name, self)
             self.arguments.append(argument)
-
-    def continue_init(self):
         if not self.java_method.body:
             return
         for block in self.java_method.body:
@@ -373,6 +371,14 @@ class JavaClass(JavaEntity):
         self.methods: List[JavaMethod] = []
         self.variables: List[JavaVariable] = []
         self.modifiers: List[JavaModifier] = [JavaModifier(m) for m in java_class.modifiers]
+        for field in self.java_class.fields:
+            for declarator in field.declarators:
+                if isinstance(declarator, javalang.tree.VariableDeclarator):
+                    variable = JavaVariable(field, declarator, self.java_file)
+                    variable.modifiers = [JavaModifier(m) for m in field.modifiers]
+                    self.variables.append(variable)
+        for method in self.java_class.methods:
+            self.methods.append(JavaMethod(method, self))
 
     def compare(self, other: JavaClass) -> Report:
         report = self.compare_parts(other, "modifiers")
@@ -398,16 +404,6 @@ class JavaClass(JavaEntity):
         if len(ans) > 0:
             return ans[-1]
         return None
-
-    def continue_init(self):
-        for field in self.java_class.fields:
-            for declarator in field.declarators:
-                if isinstance(declarator, javalang.tree.VariableDeclarator):
-                    variable = JavaVariable(field, declarator, self.java_file)
-                    variable.modifiers = [JavaModifier(m) for m in field.modifiers]
-                    self.variables.append(variable)
-        for method in self.java_class.methods:
-            self.methods.append(JavaMethod(method, self))
 
 
 class JavaFile(JavaEntity):
@@ -471,13 +467,9 @@ class Project(JavaEntity):
         for file in self.java_files:
             for w_import in file.wildcard_imports:
                 file.import_types.extend(f.name_without_appendix for f in self.get_files_in_package(w_import))
-        for cls in self.classes:
-            cls.continue_init()
         for t in self.user_types.keys():
             type_class = self.get_class(t.package, t.name)
             self.user_types.update({t: type_class.get_non_user_defined_types()})
-        for method in self.methods:
-            method.continue_init()
 
     def get_file(self, package: str, class_name: str) -> Optional[JavaFile]:
         files = list(
