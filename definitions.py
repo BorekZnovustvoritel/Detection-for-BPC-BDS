@@ -30,3 +30,4 @@ threshold = 70
 projects_dir = "projects"
 env_file = ".env"
 method_interface_threshold = 80
+number_of_unused_cores = 1

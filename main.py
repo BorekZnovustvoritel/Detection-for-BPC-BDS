@@ -5,6 +5,7 @@ from definitions import env_file, projects_dir
 from utils import get_self_project_root
 from scan import Project
 from compare import print_path, create_heat_map, create_excel
+from parallelization import parallel_compare_projects
 
 from pathlib import Path
 
@@ -32,13 +33,11 @@ if __name__ == "__main__":
     after_parsing = datetime.datetime.now()
     print(f"Parsing took {after_parsing - start}.")
 
-    reports = []
-    for index, project in enumerate(projects):
-        reports.extend([project.compare(other) for other in projects[index+1:]])
+    reports = parallel_compare_projects(projects)
     print(f"Comparing took {datetime.datetime.now() - after_parsing}.")
 
-    for report in reports:
-        print(f"Comparing projects: '{report.first.path}' and '{report.second.path}'")
-        print(print_path(report))
+    # for report in reports:
+    #     print(f"Comparing projects: '{report.first.path}' and '{report.second.path}'")
+    #     print(print_path(report))
     create_excel(create_heat_map(reports))
 
