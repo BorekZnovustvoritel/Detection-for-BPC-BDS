@@ -35,6 +35,7 @@ if __name__ == "__main__":
 
     reports = parallel_compare_projects(projects)
     print(f"Comparing took {datetime.datetime.now() - after_parsing}.")
+    print(f"Total comparisons: {len(reports)}")
 
     # for report in reports:
     #     print(f"Comparing projects: '{report.first.path}' and '{report.second.path}'")
