@@ -4,7 +4,7 @@ from gitlab import clone_projects
 from definitions import env_file, projects_dir
 from utils import get_self_project_root
 from scan import Project
-from compare import print_path, create_heat_map, create_excel
+from compare import print_path, create_excel
 from parallelization import parallel_compare_projects
 
 from pathlib import Path
@@ -34,11 +34,13 @@ if __name__ == "__main__":
     print(f"Parsing took {after_parsing - start}.")
 
     reports = parallel_compare_projects(projects)
-    print(f"Comparing took {datetime.datetime.now() - after_parsing}.")
+    after_comparison = datetime.datetime.now()
+    print(f"Comparing took {after_comparison - after_parsing}.")
     print(f"Total comparisons: {len(reports)}")
 
     # for report in reports:
     #     print(f"Comparing projects: '{report.first.path}' and '{report.second.path}'")
     #     print(print_path(report))
-    create_excel(create_heat_map(reports))
+    create_excel(reports)
+    print(f"Creating Excel took {datetime.datetime.now() - after_comparison}.")
 

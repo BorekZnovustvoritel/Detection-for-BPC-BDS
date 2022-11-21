@@ -36,8 +36,11 @@ class Report:
                f"{self.second.name}, Child reports: {self.child_reports}>"
 
     def __add__(self, other: Report):
-        report = Report(((self.probability * self.weight + other.probability * other.weight) //
-                         (self.weight + other.weight)), (self.weight + other.weight), self.first, self.second)
+        weight = self.weight + other.weight
+        if weight == 0:
+            weight = 1
+        report = Report((self.probability * self.weight + other.probability * other.weight) //
+                        weight, (self.weight + other.weight), self.first, self.second)
         if isinstance(self.first, type(other.first)) and isinstance(self.second, type(other.second)):
             report.child_reports.extend(self.child_reports + other.child_reports)
         else:
@@ -76,13 +79,23 @@ class JavaEntity(ABC):
                     report += max_match
                     if report.probability > definitions.threshold:
                         other_unused_values.remove(max_match.second)
-                report += Report(0, len(other_unused_values) * 10, self, other)
+                for unused_val in other_unused_values:
+                    report += Report(0, 10, NotFound(), unused_val)
         elif isinstance(self_attr_val, JavaEntity):
             another_report = self_attr_val.compare(other_attr_val)
             report += another_report
         else:
             raise ValueError(f"Cannot compare attribute '{attr}' of instance of '{type(self)}'!")
         return report
+
+
+class NotFound(JavaEntity):
+    def compare(self, other: JavaEntity) -> Report:
+        pass
+
+    def __init__(self):
+        super().__init__()
+        self.name: str = "NOT FOUND"
 
 
 class JavaModifier(JavaEntity):

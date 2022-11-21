@@ -14,9 +14,13 @@ def get_java_files(project_dir: Union[str, Path]) -> List[Path]:
 
 
 def get_user_project_root(project_dir: Union[str, Path]) -> Path:
+    if isinstance(project_dir, str):
+        project_dir = Path(project_dir)
     root_paths = list(project_dir.glob("**/src/main/java"))
     if len(root_paths) > 2:
         raise FileExistsError(f"Found too many project roots: {root_paths}")
+    if len(root_paths) < 1:
+        return project_dir
     return root_paths[0]
 
 
