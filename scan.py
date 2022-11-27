@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pathlib
+import random
 from functools import cached_property
 from math import sqrt
 from copy import copy
@@ -14,6 +15,7 @@ from typing import List, Union, Set, Optional, Dict, Type
 import re
 
 import definitions
+import thresholds
 import utils
 
 
@@ -73,20 +75,23 @@ class JavaEntity(ABC):
         if isinstance(self_attr_val, List):
             if not self_attr_val and not other_attr_val:
                 return Report(0, 0, self, other)
-            if 1 - sqrt(abs(len(self_attr_val) - len(other_attr_val)) / (len(self_attr_val) + len(other_attr_val))) < 0.4:
+            if 1 - sqrt(abs(len(self_attr_val) - len(other_attr_val)) / (len(self_attr_val) + len(other_attr_val))) < \
+                    thresholds.skip_attr_list_threshold:
                 return Report(0, 10, self, other)
-            other_used_vals = set()
-            for value in self_attr_val:
-                if not other_attr_val:
-                    report += Report(0, 10, value, NotFound())
-                    continue
-                max_match = max([value.compare(other_value) for other_value in other_attr_val])
-                report += max_match
-                other_used_vals.add(max_match.second)
-            for other_value in other_attr_val:
-                if other_value in other_used_vals:
-                    continue
-                report += max([value.compare(other_value) for value in self_attr_val])
+            self_unused_vals = set(self_attr_val)
+            other_unused_vals = set(other_attr_val)
+            while self_unused_vals and other_unused_vals:
+                value = next(iter(self_unused_vals))
+                max_match = max(value.compare(other_value) for other_value in other_unused_vals)
+                reverse_max_match = max(v.compare(max_match.second) for v in self_unused_vals)
+                winner = max(max_match, reverse_max_match)
+                self_unused_vals.remove(winner.first)
+                other_unused_vals.remove(winner.second)
+                report += winner
+            for unused_val in self_unused_vals:
+                report += Report(0, 10, unused_val, NotFound())
+            for unused_val in other_unused_vals:
+                report += Report(0, 10, NotFound(), unused_val)
         elif isinstance(self_attr_val, JavaEntity):
             report += self_attr_val.compare(other_attr_val)
         else:
@@ -359,7 +364,7 @@ class JavaMethod(JavaEntity):
     def compare(self, other: JavaMethod) -> Report:
         report = self.compare_parts(other, "return_type")
         report += self.compare_parts(other, "arguments")
-        if report.probability > definitions.method_interface_threshold:
+        if report.probability > thresholds.method_interface_threshold:
             report += self.compare_parts(other, "all_blocks")
         return report
 
