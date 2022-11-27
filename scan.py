@@ -69,12 +69,17 @@ class JavaEntity(ABC):
         other_attr_val = getattr(other, attr, None)
         if self_attr_val is None:
             raise ValueError(f"Instance of '{type(self)}' does not have attribute '{attr}'!")
-        if isinstance(self_attr_val, Iterable):
+        if isinstance(self_attr_val, List):
+            if not self_attr_val and not other_attr_val:
+                return Report(100, 1, self, other)
+            if 1 - (abs(len(self_attr_val) - len(other_attr_val)) / (len(self_attr_val) + len(other_attr_val))) < 0.5:
+                return Report(0, 10, self, other)
             other_unused_values = copy(other_attr_val)
-            if len(other_unused_values) > 0:
+            if other_unused_values:
                 for value in self_attr_val:
-                    if len(other_unused_values) < 1:
-                        break
+                    if not other_unused_values:
+                        report += Report(0, 10, value, NotFound())
+                        continue
                     max_match = max([value.compare(other_value) for other_value in other_unused_values])
                     report += max_match
                     if report.probability > definitions.threshold:
