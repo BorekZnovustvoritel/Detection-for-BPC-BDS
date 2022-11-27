@@ -1,6 +1,7 @@
 from typing import List
 
 import definitions
+import scan
 from scan import Report, Project, JavaFile, JavaClass, JavaMethod
 from definitions import threshold
 import pandas as pd
@@ -64,9 +65,9 @@ class ExcelHandler:
     def get_format(self, score: int):
         if not isinstance(score, int):
             return None
-        if score <= 33:
+        if score <= 70:
             return self.green_format
-        if score <= 67:
+        if score <= 85:
             return self.yellow_format
         return self.red_format
 
@@ -96,10 +97,10 @@ class ExcelHandler:
 
     def report_tree_to_list_of_lists(self, report: Report, indent: int = 0) -> List[List]:
         if (not definitions.print_whole_tree and report.probability < definitions.threshold) or \
-                (type(report.first) not in types_to_compare or type(report.second) not in types_to_compare):
+                (type(report.first) not in types_to_compare and type(report.second) not in types_to_compare):
             return []
         list_of_lists = [[None for _ in range(indent)] +
-                         [type(report.first).__name__, report.first.name, report.second.name, report.probability]]
+                         [type(report.first).__name__ if not isinstance(report.first, scan.NotFound) else type(report.second).__name__, report.first.name, report.second.name, report.probability]]
         for child in report.child_reports:
             list_of_lists.extend(self.report_tree_to_list_of_lists(child, indent + 1))
         return list_of_lists

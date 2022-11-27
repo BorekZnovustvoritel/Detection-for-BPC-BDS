@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pathlib
 from functools import cached_property
+from math import sqrt
 from copy import copy
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
@@ -41,7 +42,7 @@ class Report:
             weight = 1
         report = Report((self.probability * self.weight + other.probability * other.weight) //
                         weight, (self.weight + other.weight), self.first, self.second)
-        if isinstance(self.first, type(other.first)) and isinstance(self.second, type(other.second)):
+        if isinstance(self.first, type(other.first)) or isinstance(self.second, type(other.second)):
             report.child_reports.extend(self.child_reports + other.child_reports)
         else:
             report.child_reports.extend(self.child_reports)
@@ -71,24 +72,23 @@ class JavaEntity(ABC):
             raise ValueError(f"Instance of '{type(self)}' does not have attribute '{attr}'!")
         if isinstance(self_attr_val, List):
             if not self_attr_val and not other_attr_val:
-                return Report(100, 1, self, other)
-            if 1 - (abs(len(self_attr_val) - len(other_attr_val)) / (len(self_attr_val) + len(other_attr_val))) < 0.5:
+                return Report(0, 0, self, other)
+            if 1 - sqrt(abs(len(self_attr_val) - len(other_attr_val)) / (len(self_attr_val) + len(other_attr_val))) < 0.4:
                 return Report(0, 10, self, other)
-            other_unused_values = copy(other_attr_val)
-            if other_unused_values:
-                for value in self_attr_val:
-                    if not other_unused_values:
-                        report += Report(0, 10, value, NotFound())
-                        continue
-                    max_match = max([value.compare(other_value) for other_value in other_unused_values])
-                    report += max_match
-                    if report.probability > definitions.threshold:
-                        other_unused_values.remove(max_match.second)
-                for unused_val in other_unused_values:
-                    report += Report(0, 10, NotFound(), unused_val)
+            other_used_vals = set()
+            for value in self_attr_val:
+                if not other_attr_val:
+                    report += Report(0, 10, value, NotFound())
+                    continue
+                max_match = max([value.compare(other_value) for other_value in other_attr_val])
+                report += max_match
+                other_used_vals.add(max_match.second)
+            for other_value in other_attr_val:
+                if other_value in other_used_vals:
+                    continue
+                report += max([value.compare(other_value) for value in self_attr_val])
         elif isinstance(self_attr_val, JavaEntity):
-            another_report = self_attr_val.compare(other_attr_val)
-            report += another_report
+            report += self_attr_val.compare(other_attr_val)
         else:
             raise ValueError(f"Cannot compare attribute '{attr}' of instance of '{type(self)}'!")
         return report
