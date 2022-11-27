@@ -1,12 +1,11 @@
 import datetime
 
 import definitions
-from gitlab import clone_projects
 from definitions import env_file, projects_dir
 from utils import get_self_project_root
 from scan import Project
 from compare import print_path, create_excel
-from parallelization import parallel_compare_projects
+from parallelization import parallel_compare_projects, parallel_clone_projects
 
 from pathlib import Path
 
@@ -24,7 +23,7 @@ if __name__ == "__main__":
         if not projects_dir_path.exists():
             raise NotADirectoryError(f"Could not find '{projects_dir}' projects directory. See definitions.py.")
 
-    # clone_projects(env_file_path, projects_dir_path)
+    parallel_clone_projects(env_file_path, projects_dir_path)
 
     start = datetime.datetime.now()
     projects = []

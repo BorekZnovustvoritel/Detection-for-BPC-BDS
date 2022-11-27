@@ -73,7 +73,7 @@ class JavaEntity(ABC):
         if self_attr_val is None:
             raise ValueError(f"Instance of '{type(self)}' does not have attribute '{attr}'!")
         if isinstance(self_attr_val, List):
-            if not self_attr_val and not other_attr_val:
+            if not self_attr_val or not other_attr_val:
                 return Report(0, 0, self, other)
             if 1 - sqrt(abs(len(self_attr_val) - len(other_attr_val)) / (len(self_attr_val) + len(other_attr_val))) < \
                     thresholds.skip_attr_list_threshold:
