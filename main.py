@@ -1,11 +1,11 @@
 import datetime
 
 import definitions
+
 from definitions import env_file, projects_dir
 from utils import get_self_project_root
-from scan import Project
 from compare import print_path, create_excel
-from parallelization import parallel_compare_projects, parallel_clone_projects
+from parallelization import parallel_compare_projects, parallel_clone_projects, parallel_initialize_projects
 
 from pathlib import Path
 
@@ -26,9 +26,8 @@ if __name__ == "__main__":
     parallel_clone_projects(env_file_path, projects_dir_path)
 
     start = datetime.datetime.now()
-    projects = []
-    for project_path in projects_dir_path.iterdir():
-        projects.append(Project(project_path))
+
+    projects = parallel_initialize_projects(projects_dir_path)
 
     after_parsing = datetime.datetime.now()
     print(f"Parsing took {after_parsing - start}.")

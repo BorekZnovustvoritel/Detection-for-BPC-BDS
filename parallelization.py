@@ -20,8 +20,12 @@ def parallel_compare_projects(projects: List[Project]) -> List[Report]:
 
 def _single_clone(token: str, group_json, project_json, projects_dir: pathlib.Path):
     url = f"https://git:{token}@gitlab.com/{project_json['path_with_namespace']}.git"
-    run(["git", "-C", f"{projects_dir.absolute()}", "clone", url, f"{group_json['path']}-{project_json['path']}"],
-        stderr=DEVNULL)
+    dir_name = f"{group_json['path']}-{project_json['path']}"
+    out = run(["git", "-C", f"{projects_dir.absolute()}", "clone", url, dir_name],
+              stderr=DEVNULL)
+    if out.returncode:
+        repo_dir = projects_dir / dir_name
+        run(["git", "-C", f"{repo_dir.absolute()}", "pull"])
 
 
 def parallel_clone_projects(env_file: pathlib.Path, clone_dir: pathlib.Path):
@@ -56,5 +60,11 @@ def parallel_clone_projects(env_file: pathlib.Path, clone_dir: pathlib.Path):
         thread.join()
 
 
-def parallel_initialize_projects() -> List[Project]:
-    pass
+def parallel_initialize_projects(projects_dir: pathlib.Path) -> List[Project]:
+    if isinstance(projects_dir, str):
+        projects_dir = pathlib.Path(projects_dir)
+    if not projects_dir.is_dir():
+        raise EnvironmentError("Project directory could not be found!")
+    with mp.Pool(mp.cpu_count() - number_of_unused_cores) as pool:
+        projects = pool.map(Project, projects_dir.iterdir())
+    return projects
