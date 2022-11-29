@@ -11,9 +11,9 @@ import javalang.tree
 from typing import List, Union, Set, Optional, Dict, Type
 import re
 
-import definitions
-import thresholds
-import utils
+from detection.definitions import translation_dict, node_translation_dict
+from detection.thresholds import skip_attr_list_threshold, method_interface_threshold
+from detection.utils import get_ast, get_user_project_root, get_packages, get_java_files
 
 
 @total_ordering
@@ -94,7 +94,7 @@ class JavaEntity(ABC):
                     abs(len(self_attr_val) - len(other_attr_val))
                     / (len(self_attr_val) + len(other_attr_val))
                 )
-                < thresholds.skip_attr_list_threshold
+                < skip_attr_list_threshold
             ):
                 return Report(0, 10, self, other)
             self_unused_vals = set(self_attr_val)
@@ -154,7 +154,7 @@ class JavaType(JavaEntity):
         if not type_name:
             self.compatible_format = None
             return
-        self.compatible_format: str = definitions.translation_dict.get(self.name)
+        self.compatible_format: str = translation_dict.get(self.name)
 
     @cached_property
     def is_user_defined(self) -> bool:
@@ -341,7 +341,7 @@ class JavaStatementBlock(JavaEntity):
                     other,
                 )
             else:
-                backup_node_type = definitions.node_translation_dict.get(
+                backup_node_type = node_translation_dict.get(
                     node_type, None
                 )
                 if backup_node_type is not None:
@@ -473,7 +473,7 @@ class JavaMethod(JavaEntity):
     def compare(self, other: JavaMethod) -> Report:
         report = self.compare_parts(other, "return_type")
         report += self.compare_parts(other, "arguments")
-        if report.probability > thresholds.method_interface_threshold:
+        if report.probability > method_interface_threshold:
             report += self.compare_parts(other, "all_blocks")
         return report
 
@@ -557,7 +557,7 @@ class JavaFile(JavaEntity):
         )
         self.name: str = self.path.name
         self.name_without_appendix: str = self.name.replace(".java", "")
-        compilation_unit = utils.get_ast(path)
+        compilation_unit = get_ast(path)
         self.project: Project = project
         self.package: str = compilation_unit.package.name
         self.wildcard_imports = [i.path for i in compilation_unit.imports if i.wildcard]
@@ -611,11 +611,11 @@ class Project(JavaEntity):
         if not self.path.exists():
             raise ValueError(f"Given path does not exist: {path}")
         self.name = self.path.name
-        self.root_path = utils.get_user_project_root(self.path)
-        self.packages: Set[str] = utils.get_packages(self.path)
+        self.root_path = get_user_project_root(self.path)
+        self.packages: Set[str] = get_packages(self.path)
         self.user_types: Dict[JavaType, List[JavaType]] = {}
         self.java_files: List[JavaFile] = []
-        java_files = utils.get_java_files(self.path)
+        java_files = get_java_files(self.path)
         for file in java_files:
             java_file = JavaFile(file, self)
             self.java_files.append(java_file)

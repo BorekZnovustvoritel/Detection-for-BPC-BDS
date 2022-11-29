@@ -1,7 +1,7 @@
 import multiprocessing as mp
-from scan import Project, Report
+from detection.scan import Project, Report
 from typing import List
-from definitions import number_of_unused_cores
+from detection.definitions import number_of_unused_cores
 import requests
 import pathlib
 from dotenv import load_dotenv

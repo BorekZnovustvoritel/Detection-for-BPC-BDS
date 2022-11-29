@@ -1,9 +1,8 @@
 from typing import List
 
-import definitions
-import scan
-import thresholds
-from scan import Report, Project, JavaFile, JavaClass, JavaMethod
+from detection.definitions import print_whole_tree
+from detection.thresholds import print_threshold
+from detection.scan import Report, Project, JavaFile, JavaClass, JavaMethod, NotFound
 import pandas as pd
 
 types_to_compare = {Project, JavaFile, JavaClass, JavaMethod}
@@ -19,7 +18,7 @@ def print_path(report: Report, indent: int = 0) -> str:
         f"{indent * '|     '}\\ Type: {type(report.first).__name__}, "
         f"names: {report.first.name}, {report.second.name}, score: {report.probability}\n"
     )
-    if report.probability > thresholds.print_threshold:
+    if report.probability > print_threshold:
         for child_report in report.child_reports:
             string += print_path(child_report, indent + 1)
     pass
@@ -128,8 +127,8 @@ class ExcelHandler:
         self, report: Report, indent: int = 0
     ) -> List[List]:
         if (
-                not definitions.print_whole_tree
-                and report.probability < thresholds.print_threshold
+                not print_whole_tree
+                and report.probability < print_threshold
         ) or (
             type(report.first) not in types_to_compare
             and type(report.second) not in types_to_compare
@@ -139,7 +138,7 @@ class ExcelHandler:
             [None for _ in range(indent)]
             + [
                 type(report.first).__name__
-                if not isinstance(report.first, scan.NotFound)
+                if not isinstance(report.first, NotFound)
                 else type(report.second).__name__,
                 report.first.name,
                 report.second.name,

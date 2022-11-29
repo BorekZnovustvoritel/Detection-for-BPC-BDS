@@ -27,15 +27,14 @@ if __name__ == "__main__":
                 f"Could not find '{projects_dir}' projects directory. See definitions.py."
             )
 
-    parallel_clone_projects(env_file_path, projects_dir_path)
-
+    print("Cloning from GitLab...")
     start = datetime.datetime.now()
-
+    parallel_clone_projects(env_file_path, projects_dir_path)
+    after_cloning = datetime.datetime.now()
+    print(f"Cloning from GitLab took {after_cloning - start}")
     projects = parallel_initialize_projects(projects_dir_path)
-
     after_parsing = datetime.datetime.now()
-    print(f"Parsing took {after_parsing - start}.")
-
+    print(f"Parsing took {after_parsing - after_cloning}.")
     reports = parallel_compare_projects(projects)
     after_comparison = datetime.datetime.now()
     print(f"Comparing took {after_comparison - after_parsing}.")
