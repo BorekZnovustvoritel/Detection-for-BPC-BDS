@@ -54,7 +54,7 @@ def parallel_clone_projects(env_file: pathlib.Path, clone_dir: pathlib.Path):
             f"https://gitlab.com/api/v4/groups/{group_json['id']}/projects",
             headers={"PRIVATE-TOKEN": token},
         ).json():
-            if "3" in project_json["name"]:
+            if ("projekt" or "project") and "3" in project_json["name"]:
                 thread = Thread(
                     target=_single_clone,
                     args=(token, group_json, project_json, clone_dir),
