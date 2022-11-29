@@ -1,12 +1,9 @@
 from __future__ import annotations
 
 import pathlib
-import random
 from functools import cached_property
 from math import sqrt
-from copy import copy
 from abc import ABC, abstractmethod
-from collections.abc import Iterable
 from functools import total_ordering
 
 import javalang
@@ -21,7 +18,9 @@ import utils
 
 @total_ordering
 class Report:
-    def __init__(self, probability: int, weight: int, first: JavaEntity, second: JavaEntity):
+    def __init__(
+        self, probability: int, weight: int, first: JavaEntity, second: JavaEntity
+    ):
         self.probability: int = probability
         self.weight: int = weight
         self.first: JavaEntity = first
@@ -29,22 +28,35 @@ class Report:
         self.child_reports: List[Report] = []
 
     def __lt__(self, other: Report):
-        return self.probability < other.probability if self.probability != other.probability else self.weight < other.weight
+        return (
+            self.probability < other.probability
+            if self.probability != other.probability
+            else self.weight < other.weight
+        )
 
     def __eq__(self, other: Report):
         return self.probability == other.probability and self.weight == other.weight
 
     def __repr__(self):
-        return f"< Report, probability: {self.probability}, comparing entities: {self.first.name}, " \
-               f"{self.second.name}, Child reports: {self.child_reports}>"
+        return (
+            f"< Report, probability: {self.probability}, comparing entities: {self.first.name}, "
+            f"{self.second.name}, Child reports: {self.child_reports}>"
+        )
 
     def __add__(self, other: Report):
         weight = self.weight + other.weight
         if weight == 0:
             weight = 1
-        report = Report((self.probability * self.weight + other.probability * other.weight) //
-                        weight, (self.weight + other.weight), self.first, self.second)
-        if isinstance(self.first, type(other.first)) or isinstance(self.second, type(other.second)):
+        report = Report(
+            (self.probability * self.weight + other.probability * other.weight)
+            // weight,
+            (self.weight + other.weight),
+            self.first,
+            self.second,
+        )
+        if isinstance(self.first, type(other.first)) or isinstance(
+            self.second, type(other.second)
+        ):
             report.child_reports.extend(self.child_reports + other.child_reports)
         else:
             report.child_reports.extend(self.child_reports)
@@ -53,7 +65,6 @@ class Report:
 
 
 class JavaEntity(ABC):
-
     def __init__(self):
         self.name: str = ""
 
@@ -71,19 +82,31 @@ class JavaEntity(ABC):
         self_attr_val = getattr(self, attr, None)
         other_attr_val = getattr(other, attr, None)
         if self_attr_val is None:
-            raise ValueError(f"Instance of '{type(self)}' does not have attribute '{attr}'!")
+            raise ValueError(
+                f"Instance of '{type(self)}' does not have attribute '{attr}'!"
+            )
         if isinstance(self_attr_val, List):
             if not self_attr_val or not other_attr_val:
                 return Report(0, 0, self, other)
-            if 1 - sqrt(abs(len(self_attr_val) - len(other_attr_val)) / (len(self_attr_val) + len(other_attr_val))) < \
-                    thresholds.skip_attr_list_threshold:
+            if (
+                1
+                - sqrt(
+                    abs(len(self_attr_val) - len(other_attr_val))
+                    / (len(self_attr_val) + len(other_attr_val))
+                )
+                < thresholds.skip_attr_list_threshold
+            ):
                 return Report(0, 10, self, other)
             self_unused_vals = set(self_attr_val)
             other_unused_vals = set(other_attr_val)
             while self_unused_vals and other_unused_vals:
                 value = next(iter(self_unused_vals))
-                max_match = max(value.compare(other_value) for other_value in other_unused_vals)
-                reverse_max_match = max(v.compare(max_match.second) for v in self_unused_vals)
+                max_match = max(
+                    value.compare(other_value) for other_value in other_unused_vals
+                )
+                reverse_max_match = max(
+                    v.compare(max_match.second) for v in self_unused_vals
+                )
                 winner = max(max_match, reverse_max_match)
                 self_unused_vals.remove(winner.first)
                 other_unused_vals.remove(winner.second)
@@ -95,7 +118,9 @@ class JavaEntity(ABC):
         elif isinstance(self_attr_val, JavaEntity):
             report += self_attr_val.compare(other_attr_val)
         else:
-            raise ValueError(f"Cannot compare attribute '{attr}' of instance of '{type(self)}'!")
+            raise ValueError(
+                f"Cannot compare attribute '{attr}' of instance of '{type(self)}'!"
+            )
         return report
 
 
@@ -147,10 +172,14 @@ class JavaType(JavaEntity):
         if not self.is_user_defined:
             if self.name == other.name:
                 return Report(100, 10, self, other)
-            elif (self.compatible_format == other.name and other.name is not None) \
-                    or (self.name == other.compatible_format and self.name is not None):
+            elif (self.compatible_format == other.name and other.name is not None) or (
+                self.name == other.compatible_format and self.name is not None
+            ):
                 return Report(75, 10, self, other)
-            elif self.compatible_format is not None and self.compatible_format == other.compatible_format:
+            elif (
+                self.compatible_format is not None
+                and self.compatible_format == other.compatible_format
+            ):
                 return Report(50, 10, self, other)
         else:
             report = self.compare_parts(other, "non_user_defined_types")
@@ -165,12 +194,20 @@ class JavaType(JavaEntity):
 
 
 class JavaVariable(JavaEntity):
-    def __init__(self, variable_declaration: Union[javalang.tree.VariableDeclaration, javalang.tree.FieldDeclaration],
-                 variable_declarator: javalang.tree.VariableDeclarator, java_file: JavaFile):
+    def __init__(
+        self,
+        variable_declaration: Union[
+            javalang.tree.VariableDeclaration, javalang.tree.FieldDeclaration
+        ],
+        variable_declarator: javalang.tree.VariableDeclarator,
+        java_file: JavaFile,
+    ):
         super().__init__()
         self.java_file: JavaFile = java_file
         self.name: str = variable_declarator.name
-        self.modifiers: List[JavaModifier] = [JavaModifier(m) for m in variable_declaration.modifiers]
+        self.modifiers: List[JavaModifier] = [
+            JavaModifier(m) for m in variable_declaration.modifiers
+        ]
         self.type_name: str = variable_declaration.type.name
 
     @cached_property
@@ -184,7 +221,11 @@ class JavaVariable(JavaEntity):
 
 
 class JavaMethodInvocation:
-    def __init__(self, method_invocation: javalang.tree.MethodInvocation, statement: JavaStatementBlock):
+    def __init__(
+        self,
+        method_invocation: javalang.tree.MethodInvocation,
+        statement: JavaStatementBlock,
+    ):
         self.statement: JavaStatementBlock = statement
         self.qualifier_str: str = method_invocation.qualifier
         self.name: str = method_invocation.member
@@ -192,9 +233,13 @@ class JavaMethodInvocation:
     @cached_property
     def qualifier(self) -> Optional[JavaVariable]:
         if self.qualifier_str:
-            qualifier = self.statement.java_method.get_local_variable(self.qualifier_str)
+            qualifier = self.statement.java_method.get_local_variable(
+                self.qualifier_str
+            )
             if not qualifier:
-                qualifier = self.statement.java_method.java_class.get_variable(self.qualifier_str)
+                qualifier = self.statement.java_method.java_class.get_variable(
+                    self.qualifier_str
+                )
             return qualifier
         else:
             return None
@@ -204,18 +249,31 @@ class JavaMethodInvocation:
         qualifier = self.qualifier
         if not qualifier:
             local_methods = list(
-                filter(lambda x: True if self.name == x.name else False, self.statement.java_method.java_class.methods))
+                filter(
+                    lambda x: True if self.name == x.name else False,
+                    self.statement.java_method.java_class.methods,
+                )
+            )
             if len(local_methods) == 1:
                 return local_methods[0]
         else:
             t = qualifier.type
             if t.is_user_defined:
-                cls = list(filter(lambda x: True if x.name == t.name else False,
-                                  self.statement.java_method.java_class.java_file.project.get_classes_in_package(
-                                      t.package)))
+                cls = list(
+                    filter(
+                        lambda x: True if x.name == t.name else False,
+                        self.statement.java_method.java_class.java_file.project.get_classes_in_package(
+                            t.package
+                        ),
+                    )
+                )
                 if len(cls) != 1:
                     return None
-                m = list(filter(lambda x: True if x.name == self.name else False, cls[0].methods))
+                m = list(
+                    filter(
+                        lambda x: True if x.name == self.name else False, cls[0].methods
+                    )
+                )
                 if len(m) != 1:
                     return None
                 return m[0]
@@ -227,15 +285,21 @@ class JavaStatementBlock(JavaEntity):
         self.name: str = f"Statement {statement.position}"
         self.java_method: JavaMethod = java_method
         self.local_variables: List[JavaVariable] = []
-        searched_nodes = self._search_for_types(statement,
-                                                {javalang.tree.VariableDeclaration, javalang.tree.MethodInvocation})
+        searched_nodes = self._search_for_types(
+            statement,
+            {javalang.tree.VariableDeclaration, javalang.tree.MethodInvocation},
+        )
         for declaration in searched_nodes.get(javalang.tree.VariableDeclaration, []):
             for declarator in declaration.declarators:
-                var = JavaVariable(declaration, declarator, self.java_method.java_class.java_file)
+                var = JavaVariable(
+                    declaration, declarator, self.java_method.java_class.java_file
+                )
                 self.local_variables.append(var)
 
-        self.invoked_methods: List[JavaMethodInvocation] = [JavaMethodInvocation(m, self) for m in
-                                                            searched_nodes.get(javalang.tree.MethodInvocation, [])]
+        self.invoked_methods: List[JavaMethodInvocation] = [
+            JavaMethodInvocation(m, self)
+            for m in searched_nodes.get(javalang.tree.MethodInvocation, [])
+        ]
         self.parts: Dict[Type, int] = self._tree_to_dict(statement)
 
     @cached_property
@@ -246,9 +310,15 @@ class JavaStatementBlock(JavaEntity):
             if m == self.java_method:
                 continue
             if m is not None:
-                ans.extend([JavaStatementBlock(s, m) for s in m.raw_statement_blocks if not
-                (isinstance(s, javalang.tree.Statement) and len(s.attrs) == 1)
-                            ])
+                ans.extend(
+                    [
+                        JavaStatementBlock(s, m)
+                        for s in m.raw_statement_blocks
+                        if not (
+                            isinstance(s, javalang.tree.Statement) and len(s.attrs) == 1
+                        )
+                    ]
+                )
         return ans
 
     def compare(self, other: JavaStatementBlock) -> Report:
@@ -258,32 +328,67 @@ class JavaStatementBlock(JavaEntity):
             other_occurrences = other.parts.get(node_type, 0)
             if other_occurrences > 0:
                 report += Report(
-                    int(100 - 100 * (
-                            abs(self_occurrences - other_occurrences) / (self_occurrences + other_occurrences))),
-                    10, self, other)
+                    int(
+                        100
+                        - 100
+                        * (
+                            abs(self_occurrences - other_occurrences)
+                            / (self_occurrences + other_occurrences)
+                        )
+                    ),
+                    10,
+                    self,
+                    other,
+                )
             else:
-                backup_node_type = definitions.node_translation_dict.get(node_type, None)
+                backup_node_type = definitions.node_translation_dict.get(
+                    node_type, None
+                )
                 if backup_node_type is not None:
                     other_occurrences = other.parts.get(backup_node_type, 0)
                     if other_occurrences > 0:
-                        report += Report(int(50 - 50 * (
-                                abs(self_occurrences - other_occurrences) / (self_occurrences + other_occurrences))),
-                                         10, self, other)
+                        report += Report(
+                            int(
+                                50
+                                - 50
+                                * (
+                                    abs(self_occurrences - other_occurrences)
+                                    / (self_occurrences + other_occurrences)
+                                )
+                            ),
+                            10,
+                            self,
+                            other,
+                        )
                 else:
                     report += Report(0, 10, self, other)
         return report
 
-    def _search_for_types(self, statement: javalang.tree.Node, block_types: Set[Type]) -> Dict[
-        Type, List[javalang.tree.Node]]:
+    def _search_for_types(
+        self, statement: javalang.tree.Node, block_types: Set[Type]
+    ) -> Dict[Type, List[javalang.tree.Node]]:
         ans = {}
         if not isinstance(statement, javalang.tree.Node):
             return ans
         node_type = type(statement)
         if node_type in block_types:
             if node_type in ans.keys():
-                ans.update({node_type: ans[node_type] + [statement, ]})
+                ans.update(
+                    {
+                        node_type: ans[node_type]
+                        + [
+                            statement,
+                        ]
+                    }
+                )
             else:
-                ans.update({node_type: [statement, ]})
+                ans.update(
+                    {
+                        node_type: [
+                            statement,
+                        ]
+                    }
+                )
         for attribute in getattr(statement, "attrs", []):
             child = getattr(statement, attribute, None)
             if isinstance(child, javalang.tree.Node):
@@ -330,7 +435,9 @@ class JavaParameter(JavaEntity):
 
 
 class JavaMethod(JavaEntity):
-    def __init__(self, java_method: javalang.tree.MethodDeclaration, java_class: JavaClass):
+    def __init__(
+        self, java_method: javalang.tree.MethodDeclaration, java_class: JavaClass
+    ):
         super().__init__()
         self.java_method: javalang.tree.MethodDeclaration = java_method
         self.name: str = self.java_method.name
@@ -338,7 +445,9 @@ class JavaMethod(JavaEntity):
         self.raw_statement_blocks: List[javalang.tree.Node] = java_method.body
         self.statement_blocks: List[JavaStatementBlock] = []
         self.return_type_str: str = getattr(java_method.return_type, "name", None)
-        self.modifiers: List[JavaModifier] = [JavaModifier(m) for m in java_method.modifiers]
+        self.modifiers: List[JavaModifier] = [
+            JavaModifier(m) for m in java_method.modifiers
+        ]
         self.arguments: List[JavaParameter] = []
         for parameter in self.java_method.parameters:
             argument = JavaParameter(parameter.name, parameter.type.name, self)
@@ -369,7 +478,11 @@ class JavaMethod(JavaEntity):
         return report
 
     def get_local_variable(self, var_name: str) -> Optional[JavaVariable]:
-        ans = list(filter(lambda x: True if x.name == var_name else False, self.local_variables))
+        ans = list(
+            filter(
+                lambda x: True if x.name == var_name else False, self.local_variables
+            )
+        )
         if len(ans) > 0:
             return ans[-1]
         return None
@@ -394,7 +507,9 @@ class JavaClass(JavaEntity):
         self.name: str = java_class.name
         self.methods: List[JavaMethod] = []
         self.variables: List[JavaVariable] = []
-        self.modifiers: List[JavaModifier] = [JavaModifier(m) for m in java_class.modifiers]
+        self.modifiers: List[JavaModifier] = [
+            JavaModifier(m) for m in java_class.modifiers
+        ]
         for field in self.java_class.fields:
             for declarator in field.declarators:
                 if isinstance(declarator, javalang.tree.VariableDeclarator):
@@ -419,12 +534,16 @@ class JavaClass(JavaEntity):
                 continue
             else:
                 ans.extend(
-                    self.java_file.project.get_class(variable.type.package,
-                                                     variable.type.name).get_non_user_defined_types())
+                    self.java_file.project.get_class(
+                        variable.type.package, variable.type.name
+                    ).get_non_user_defined_types()
+                )
         return ans
 
     def get_variable(self, var_name: str):
-        ans = list(filter(lambda x: True if x.name == var_name else False, self.variables))
+        ans = list(
+            filter(lambda x: True if x.name == var_name else False, self.variables)
+        )
         if len(ans) > 0:
             return ans[-1]
         return None
@@ -433,18 +552,26 @@ class JavaClass(JavaEntity):
 class JavaFile(JavaEntity):
     def __init__(self, path: Union[str, pathlib.Path], project: Project):
         super().__init__()
-        self.path: pathlib.Path = pathlib.Path(path) if not isinstance(path, pathlib.Path) else path
+        self.path: pathlib.Path = (
+            pathlib.Path(path) if not isinstance(path, pathlib.Path) else path
+        )
         self.name: str = self.path.name
-        self.name_without_appendix: str = self.name.replace(".java", '')
+        self.name_without_appendix: str = self.name.replace(".java", "")
         compilation_unit = utils.get_ast(path)
         self.project: Project = project
         self.package: str = compilation_unit.package.name
         self.wildcard_imports = [i.path for i in compilation_unit.imports if i.wildcard]
-        self.imports: List[str] = [i.path for i in compilation_unit.imports if not i.wildcard]
-        self.import_types: List[str] = [i.split('.')[-1] for i in self.imports]
-        self.classes: List[JavaClass] = [JavaClass(body, self) for body in compilation_unit.types]
+        self.imports: List[str] = [
+            i.path for i in compilation_unit.imports if not i.wildcard
+        ]
+        self.import_types: List[str] = [i.split(".")[-1] for i in self.imports]
+        self.classes: List[JavaClass] = [
+            JavaClass(body, self) for body in compilation_unit.types
+        ]
         for cls in self.classes:
-            self.project.user_types.update({JavaType(cls.name, self.package, self.project): []})
+            self.project.user_types.update(
+                {JavaType(cls.name, self.package, self.project): []}
+            )
 
     def compare(self, other: JavaFile) -> Report:
         report = self.compare_parts(other, "classes")
@@ -458,10 +585,14 @@ class JavaFile(JavaEntity):
             return ans
         for imp in self.imports:
             if re.match(rf"^.*\.{type_name}$", imp) is not None:
-                ans = self.project.get_user_type(imp.replace(f".{type_name}", ''), type_name)
+                ans = self.project.get_user_type(
+                    imp.replace(f".{type_name}", ""), type_name
+                )
                 if ans is not None:
                     return ans
-                return JavaType(type_name, imp.replace(f".{type_name}", ''), self.project)
+                return JavaType(
+                    type_name, imp.replace(f".{type_name}", ""), self.project
+                )
         for wildcard_import in self.wildcard_imports:
             ans = self.project.get_user_type(wildcard_import, type_name)
             if ans is not None:
@@ -490,21 +621,30 @@ class Project(JavaEntity):
             self.java_files.append(java_file)
         for file in self.java_files:
             for w_import in file.wildcard_imports:
-                file.import_types.extend(f.name_without_appendix for f in self.get_files_in_package(w_import))
+                file.import_types.extend(
+                    f.name_without_appendix for f in self.get_files_in_package(w_import)
+                )
         for t in self.user_types.keys():
             type_class = self.get_class(t.package, t.name)
             self.user_types.update({t: type_class.get_non_user_defined_types()})
 
     def get_file(self, package: str, class_name: str) -> Optional[JavaFile]:
         files = list(
-            filter(lambda x: True if x.name_without_appendix == class_name and x.package == package else False,
-                   self.java_files))
+            filter(
+                lambda x: True
+                if x.name_without_appendix == class_name and x.package == package
+                else False,
+                self.java_files,
+            )
+        )
         if len(files) == 1:
             return files[0]
         return None
 
     def get_files_in_package(self, package: str) -> List[JavaFile]:
-        return list(filter(lambda x: True if x.package == package else False, self.java_files))
+        return list(
+            filter(lambda x: True if x.package == package else False, self.java_files)
+        )
 
     def get_classes_in_package(self, package: str) -> List[JavaClass]:
         ans = []
@@ -513,7 +653,9 @@ class Project(JavaEntity):
         return ans
 
     def get_class(self, package: str, class_name: str) -> Optional[JavaClass]:
-        found_classes = list(filter(lambda x: True if x.name == class_name else False, self.classes))
+        found_classes = list(
+            filter(lambda x: True if x.name == class_name else False, self.classes)
+        )
         if len(found_classes) == 1:
             return found_classes[0]
         print(f"Project.get_class: Cannot find {package}.{class_name}!")
@@ -521,7 +663,12 @@ class Project(JavaEntity):
 
     def get_user_type(self, package: str, class_name: str) -> Optional[JavaType]:
         types = list(
-            filter(lambda x: True if x.package == package and x.name == class_name else False, self.user_types.keys())
+            filter(
+                lambda x: True
+                if x.package == package and x.name == class_name
+                else False,
+                self.user_types.keys(),
+            )
         )
         if len(types) == 1:
             return types[0]

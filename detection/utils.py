@@ -6,7 +6,7 @@ from javalang import tree
 
 
 def get_self_project_root() -> Path:
-    return Path(__file__).parent
+    return Path(__file__).parent.parent
 
 
 def get_java_files(project_dir: Union[str, Path]) -> List[Path]:
@@ -25,8 +25,8 @@ def get_user_project_root(project_dir: Union[str, Path]) -> Path:
 
 
 def get_ast(java_file: Union[str, Path]) -> javalang.tree.CompilationUnit:
-    with open(java_file, 'r') as inp_file:
-        lines = ''.join(inp_file.readlines())
+    with open(java_file, "r") as inp_file:
+        lines = "".join(inp_file.readlines())
     return javalang.parse.parse(lines)
 
 

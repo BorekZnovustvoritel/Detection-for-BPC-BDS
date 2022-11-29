@@ -14,15 +14,17 @@ def parallel_compare_projects(projects: List[Project]) -> List[Report]:
     reports = []
     with mp.Pool(mp.cpu_count() - number_of_unused_cores) as pool:
         for index, project in enumerate(projects[:-1]):
-            reports.extend(pool.map(project.compare, projects[index + 1:]))
+            reports.extend(pool.map(project.compare, projects[index + 1 :]))
     return reports
 
 
 def _single_clone(token: str, group_json, project_json, projects_dir: pathlib.Path):
     url = f"https://git:{token}@gitlab.com/{project_json['path_with_namespace']}.git"
     dir_name = f"{group_json['path']}-{project_json['path']}"
-    out = run(["git", "-C", f"{projects_dir.absolute()}", "clone", url, dir_name],
-              stderr=DEVNULL)
+    out = run(
+        ["git", "-C", f"{projects_dir.absolute()}", "clone", url, dir_name],
+        stderr=DEVNULL,
+    )
     if out.returncode:
         repo_dir = projects_dir / dir_name
         run(["git", "-C", f"{repo_dir.absolute()}", "pull"])
@@ -45,15 +47,18 @@ def parallel_clone_projects(env_file: pathlib.Path, clone_dir: pathlib.Path):
         clone_dir = pathlib.Path(clone_dir)
     threads = []
     for group_json in requests.get(
-            f"https://gitlab.com/api/v4/groups/{group_id}/subgroups",
-            headers={"PRIVATE-TOKEN": token},
+        f"https://gitlab.com/api/v4/groups/{group_id}/subgroups",
+        headers={"PRIVATE-TOKEN": token},
     ).json():
         for project_json in requests.get(
-                f"https://gitlab.com/api/v4/groups/{group_json['id']}/projects",
-                headers={"PRIVATE-TOKEN": token},
+            f"https://gitlab.com/api/v4/groups/{group_json['id']}/projects",
+            headers={"PRIVATE-TOKEN": token},
         ).json():
             if "3" in project_json["name"]:
-                thread = Thread(target=_single_clone, args=(token, group_json, project_json, clone_dir))
+                thread = Thread(
+                    target=_single_clone,
+                    args=(token, group_json, project_json, clone_dir),
+                )
                 threads.append(thread)
                 thread.start()
     for thread in threads:
