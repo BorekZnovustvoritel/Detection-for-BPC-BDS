@@ -1,5 +1,5 @@
 import datetime
-
+import os
 
 from detection.definitions import env_file, projects_dir, debug
 from detection.utils import get_self_project_root
@@ -23,9 +23,7 @@ if __name__ == "__main__":
     if not projects_dir_path.exists():
         projects_dir_path = Path(get_self_project_root() / projects_dir)
         if not projects_dir_path.exists():
-            raise NotADirectoryError(
-                f"Could not find '{projects_dir}' projects directory. See definitions.py."
-            )
+            os.mkdir(projects_dir_path)
 
     print("Cloning from GitLab...")
     start = datetime.datetime.now()
