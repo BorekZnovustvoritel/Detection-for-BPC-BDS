@@ -1,7 +1,7 @@
 import datetime
 import os
 
-from detection.definitions import env_file, projects_dir, debug
+from detection.definitions import env_file, projects_dir, debug, offline
 from detection.utils import get_self_project_root
 from detection.compare import print_path, create_excel
 from detection.parallelization import (
@@ -13,23 +13,24 @@ from detection.parallelization import (
 from pathlib import Path
 
 if __name__ == "__main__":
-    env_file_path = Path(get_self_project_root() / env_file)
-    if not env_file_path.exists():
-        raise EnvironmentError(
-            f"Could not find configured '{env_file}' environment file. See definitions.py."
-        )
-
     projects_dir_path = Path(projects_dir)
     if not projects_dir_path.exists():
         projects_dir_path = Path(get_self_project_root() / projects_dir)
         if not projects_dir_path.exists():
             os.mkdir(projects_dir_path)
 
-    print("Cloning from GitLab...")
-    start = datetime.datetime.now()
-    parallel_clone_projects(env_file_path, projects_dir_path)
+    if not offline:
+        env_file_path = Path(get_self_project_root() / env_file)
+        if not env_file_path.exists():
+            raise EnvironmentError(
+                f"Could not find configured '{env_file}' environment file. See definitions.py."
+            )
+        print("Cloning from GitLab...")
+        start = datetime.datetime.now()
+        parallel_clone_projects(env_file_path, projects_dir_path)
+        print(f"Cloning from GitLab took {datetime.datetime.now() - start}")
+
     after_cloning = datetime.datetime.now()
-    print(f"Cloning from GitLab took {after_cloning - start}")
     projects = parallel_initialize_projects(projects_dir_path)
     after_parsing = datetime.datetime.now()
     print(f"Parsing took {after_parsing - after_cloning}.")

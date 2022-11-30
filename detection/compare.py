@@ -96,7 +96,7 @@ class ExcelHandler:
         table_of_reports = self.report_tree_to_list_of_lists(report)
         table_width = max(len(row) for row in table_of_reports)
         sheet = self.workbook.add_worksheet(sheet_name)
-        column_lengths = {i: 0 for i in range(table_width)}
+        column_lengths = {i: 0 for i in range(table_width - 1)}
         for row_idx, row in enumerate(table_of_reports):
             is_first = True
             for col_idx, cell_value in enumerate(row):
