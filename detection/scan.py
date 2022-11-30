@@ -11,13 +11,15 @@ import javalang.tree
 from typing import List, Union, Set, Optional, Dict, Type
 import re
 
-from detection.definitions import translation_dict, node_translation_dict
+from detection.definitions import translation_dict, node_translation_dict, thorough_scan
 from detection.thresholds import skip_attr_list_threshold, method_interface_threshold
 from detection.utils import get_ast, get_user_project_root, get_packages, get_java_files
 
 
 @total_ordering
 class Report:
+    """Pairwise comparison result. Used as Model from the M-V-C architecture."""
+
     def __init__(
         self, probability: int, weight: int, first: JavaEntity, second: JavaEntity
     ):
@@ -65,6 +67,8 @@ class Report:
 
 
 class JavaEntity(ABC):
+    """Abstract object class for all the comparable parts of projects."""
+
     def __init__(self):
         self.name: str = ""
 
@@ -73,9 +77,12 @@ class JavaEntity(ABC):
 
     @abstractmethod
     def compare(self, other: JavaEntity) -> Report:
+        """Compare two objects of the same class inherited from `JavaEntity`. Produces `Report` object."""
         pass
 
     def compare_parts(self, other: JavaEntity, attr: str) -> Report:
+        """Helper method that compares comparable attributes of objects.
+        This method is responsible for the hierarchical behavior of comparisons."""
         if not isinstance(other, type(self)):
             raise TypeError("Cannot compare different types of JavaEntity!")
         report = Report(0, 0, self, other)
@@ -88,7 +95,7 @@ class JavaEntity(ABC):
         if isinstance(self_attr_val, List):
             if not self_attr_val or not other_attr_val:
                 return Report(0, 0, self, other)
-            if (
+            if not thorough_scan and (
                 1
                 - sqrt(
                     abs(len(self_attr_val) - len(other_attr_val))
@@ -125,6 +132,8 @@ class JavaEntity(ABC):
 
 
 class NotFound(JavaEntity):
+    """Indicate that some part of the projects could not be matched to anything."""
+
     def compare(self, other: JavaEntity) -> Report:
         pass
 
@@ -134,7 +143,10 @@ class NotFound(JavaEntity):
 
 
 class JavaModifier(JavaEntity):
+    """Modifiers of classes, methods or variables."""
+
     def __init__(self, name: str):
+        """Parameter `name` represents the Modifier string."""
         super().__init__()
         self.name: str = name
 
@@ -146,7 +158,12 @@ class JavaModifier(JavaEntity):
 
 
 class JavaType(JavaEntity):
+    """Data type of variables or arguments, return type of methods. Can be user-implemented, imported, basic or None."""
+
     def __init__(self, type_name: str, package: str, project: Project):
+        """Parameter `type_name` is the type identifier represented in source code,
+        `package` represents the package where this type was declared
+         and `project` keeps track of the parent `Project` object."""
         super().__init__()
         self.project = project
         self.name: str = type_name
@@ -158,10 +175,12 @@ class JavaType(JavaEntity):
 
     @cached_property
     def is_user_defined(self) -> bool:
+        """Was this data type declared by the programmer or not?"""
         return True if self in self.project.user_types else False
 
     @cached_property
     def non_user_defined_types(self) -> List[JavaType]:
+        """Lists basic and externally imported data types that composed user-defined data type."""
         return self.project.user_types.get(self)
 
     def compare(self, other: JavaType) -> Report:
@@ -194,6 +213,8 @@ class JavaType(JavaEntity):
 
 
 class JavaVariable(JavaEntity):
+    """Holds reference to a variable from the source code."""
+
     def __init__(
         self,
         variable_declaration: Union[
@@ -202,6 +223,10 @@ class JavaVariable(JavaEntity):
         variable_declarator: javalang.tree.VariableDeclarator,
         java_file: JavaFile,
     ):
+        """Parameter `variable_declaration` requires appropriate AST subtree,
+        `variable` declarator requires AST subtree contained in the `variable_declaration`,
+         `java_file` specifies parent file. (Single declaration can have multiple declarations.
+         That is why 2 subtrees are required in order to construct this object.)"""
         super().__init__()
         self.java_file: JavaFile = java_file
         self.name: str = variable_declarator.name
@@ -212,6 +237,7 @@ class JavaVariable(JavaEntity):
 
     @cached_property
     def type(self) -> JavaType:
+        """Returns `JavaType` instance."""
         return self.java_file.get_type(self.type_name)
 
     def compare(self, other: JavaVariable) -> Report:
@@ -221,17 +247,22 @@ class JavaVariable(JavaEntity):
 
 
 class JavaMethodInvocation:
+    """Helper class, represents invoked method from the body of another method."""
+
     def __init__(
         self,
         method_invocation: javalang.tree.MethodInvocation,
         statement: JavaStatementBlock,
     ):
+        """Parameter `method_invocation` requires appropriate AST subtree,
+        `statement` is reference to the parent `JavaStatementBlock` object."""
         self.statement: JavaStatementBlock = statement
         self.qualifier_str: str = method_invocation.qualifier
         self.name: str = method_invocation.member
 
     @cached_property
     def qualifier(self) -> Optional[JavaVariable]:
+        """Java variable upon which the method was called."""
         if self.qualifier_str:
             qualifier = self.statement.java_method.get_local_variable(
                 self.qualifier_str
@@ -246,6 +277,7 @@ class JavaMethodInvocation:
 
     @cached_property
     def method_referenced(self) -> Optional[JavaMethod]:
+        """`JavaMethod` object of the method that was called."""
         qualifier = self.qualifier
         if not qualifier:
             local_methods = list(
@@ -280,7 +312,11 @@ class JavaMethodInvocation:
 
 
 class JavaStatementBlock(JavaEntity):
+    """Statements from the source code between semicolons contained in the body of a method."""
+
     def __init__(self, statement: javalang.tree.Statement, java_method: JavaMethod):
+        """Parameter `statement` requires appropriate AST subtree,
+        `java_method` holds reference to parent `JavaMethod` object."""
         super().__init__()
         self.name: str = f"Statement {statement.position}"
         self.java_method: JavaMethod = java_method
@@ -304,21 +340,14 @@ class JavaStatementBlock(JavaEntity):
 
     @cached_property
     def statements_from_invocations(self) -> List[JavaStatementBlock]:
+        """Statements from methods called from the body of this method."""
         ans = []
         for invoked_method in self.invoked_methods:
             m = invoked_method.method_referenced
             if m == self.java_method:
                 continue
             if m is not None:
-                ans.extend(
-                    [
-                        JavaStatementBlock(s, m)
-                        for s in m.raw_statement_blocks
-                        if not (
-                            isinstance(s, javalang.tree.Statement) and len(s.attrs) == 1
-                        )
-                    ]
-                )
+                ans.extend(m.statement_blocks)
         return ans
 
     def compare(self, other: JavaStatementBlock) -> Report:
@@ -341,9 +370,7 @@ class JavaStatementBlock(JavaEntity):
                     other,
                 )
             else:
-                backup_node_type = node_translation_dict.get(
-                    node_type, None
-                )
+                backup_node_type = node_translation_dict.get(node_type, None)
                 if backup_node_type is not None:
                     other_occurrences = other.parts.get(backup_node_type, 0)
                     if other_occurrences > 0:
@@ -367,6 +394,9 @@ class JavaStatementBlock(JavaEntity):
     def _search_for_types(
         self, statement: javalang.tree.Node, block_types: Set[Type]
     ) -> Dict[Type, List[javalang.tree.Node]]:
+        """Go through AST and fetch subtrees rooted in specified node types.
+        Parameter `statement` represents AST, `block_types` is set of searched node types.
+        Returns dictionary structured as so: `{NodeType1: [subtree1, subtree2, ...], NodeType2: [...]}`"""
         ans = {}
         if not isinstance(statement, javalang.tree.Node):
             return ans
@@ -401,6 +431,7 @@ class JavaStatementBlock(JavaEntity):
         return ans
 
     def _tree_to_dict(self, tree: javalang.tree.Node) -> Dict[Type, int]:
+        """Flattens AST to dictionary structured as so: {NodeType: number_of_occurrences}"""
         ans: Dict[Type, int] = {}
         node_type = type(tree)
         if node_type in ans.keys():
@@ -420,7 +451,12 @@ class JavaStatementBlock(JavaEntity):
 
 
 class JavaParameter(JavaEntity):
+    """Arguments of methods."""
+
     def __init__(self, parameter_name: str, parameter_type: str, method: JavaMethod):
+        """Parameter `parameter_name` represents the identifier for the argument,
+        `parameter_type` is an identifier of the parameter type,
+        `method` is parent `JavaMethod` object."""
         super().__init__()
         self.name: str = parameter_name
         self.type_string: str = parameter_type
@@ -428,6 +464,7 @@ class JavaParameter(JavaEntity):
 
     @cached_property
     def type(self):
+        """`JavaType` of the parameter."""
         return self.method.java_class.java_file.get_type(self.type_string)
 
     def compare(self, other: JavaParameter) -> Report:
@@ -435,9 +472,13 @@ class JavaParameter(JavaEntity):
 
 
 class JavaMethod(JavaEntity):
+    """Method object from the source code."""
+
     def __init__(
         self, java_method: javalang.tree.MethodDeclaration, java_class: JavaClass
     ):
+        """Parameter `java_method` requires appropriate AST subtree,
+        `java_class` is reference to the parent `JavaClass` object."""
         super().__init__()
         self.java_method: javalang.tree.MethodDeclaration = java_method
         self.name: str = self.java_method.name
@@ -461,6 +502,7 @@ class JavaMethod(JavaEntity):
 
     @cached_property
     def local_variables(self) -> List[JavaVariable]:
+        """Variables declared in the body of this method."""
         ans = []
         for statement_block in self.statement_blocks:
             ans.extend(statement_block.local_variables)
@@ -468,6 +510,7 @@ class JavaMethod(JavaEntity):
 
     @cached_property
     def return_type(self):
+        """`JavaType` object of the return type."""
         return self.java_class.java_file.get_type(self.return_type_str)
 
     def compare(self, other: JavaMethod) -> Report:
@@ -478,6 +521,7 @@ class JavaMethod(JavaEntity):
         return report
 
     def get_local_variable(self, var_name: str) -> Optional[JavaVariable]:
+        """Get local variable by its name."""
         ans = list(
             filter(
                 lambda x: True if x.name == var_name else False, self.local_variables
@@ -489,6 +533,7 @@ class JavaMethod(JavaEntity):
 
     @cached_property
     def statements_from_invocations(self) -> List[JavaStatementBlock]:
+        """Statements from other methods invoked from the body of this method."""
         ans = []
         for block in self.statement_blocks:
             ans.extend(block.statements_from_invocations)
@@ -496,11 +541,16 @@ class JavaMethod(JavaEntity):
 
     @cached_property
     def all_blocks(self):
+        """Statements from own body and from invoked methods."""
         return self.statement_blocks + self.statements_from_invocations
 
 
 class JavaClass(JavaEntity):
+    """Representation of classes from the source code."""
+
     def __init__(self, java_class: javalang.tree.ClassDeclaration, java_file: JavaFile):
+        """Parameter `java_class` requires appropriate AST subtree,
+        `java_file` is reference to the parent `JavaFile` object."""
         super().__init__()
         self.java_class: javalang.tree.ClassDeclaration = java_class
         self.java_file: JavaFile = java_file
@@ -526,6 +576,7 @@ class JavaClass(JavaEntity):
         return report
 
     def get_non_user_defined_types(self) -> List[JavaType]:
+        """Return all class attribute types as list of types not defined by the user."""
         ans = []
         for variable in self.variables:
             if not variable.type.is_user_defined:
@@ -541,6 +592,7 @@ class JavaClass(JavaEntity):
         return ans
 
     def get_variable(self, var_name: str):
+        """Find variable by its name."""
         ans = list(
             filter(lambda x: True if x.name == var_name else False, self.variables)
         )
@@ -550,7 +602,11 @@ class JavaClass(JavaEntity):
 
 
 class JavaFile(JavaEntity):
+    """Represents files that end with the '.java' extension."""
+
     def __init__(self, path: Union[str, pathlib.Path], project: Project):
+        """Parameter `path` is path to the file,
+        `project` is parent `Project` instance."""
         super().__init__()
         self.path: pathlib.Path = (
             pathlib.Path(path) if not isinstance(path, pathlib.Path) else path
@@ -578,6 +634,7 @@ class JavaFile(JavaEntity):
         return report
 
     def get_type(self, type_name: str) -> JavaType:
+        """Get `JavaType` object from its string identifier."""
         if not type_name:
             return JavaType(None, None, self.project)
         ans = self.project.get_user_type(self.package, type_name)
@@ -601,7 +658,10 @@ class JavaFile(JavaEntity):
 
 
 class Project(JavaEntity):
+    """Represents whole project that needs to be compared with other projects."""
+
     def __init__(self, path: Union[str, pathlib.Path]):
+        """Parameter `path` is path to the project's root directory."""
         super().__init__()
         self.path: pathlib.Path
         if not isinstance(path, pathlib.Path):
@@ -629,6 +689,7 @@ class Project(JavaEntity):
             self.user_types.update({t: type_class.get_non_user_defined_types()})
 
     def get_file(self, package: str, class_name: str) -> Optional[JavaFile]:
+        """Returns `JavaFile` object filtered by package and class name."""
         files = list(
             filter(
                 lambda x: True
@@ -642,17 +703,20 @@ class Project(JavaEntity):
         return None
 
     def get_files_in_package(self, package: str) -> List[JavaFile]:
+        """Returns all `JavaFile` instances in a package."""
         return list(
             filter(lambda x: True if x.package == package else False, self.java_files)
         )
 
     def get_classes_in_package(self, package: str) -> List[JavaClass]:
+        """Returns all `JavaClass` instances in a package."""
         ans = []
         for file in self.get_files_in_package(package):
             ans.extend(file.classes)
         return ans
 
     def get_class(self, package: str, class_name: str) -> Optional[JavaClass]:
+        """Return `JavaClass` object filtered by package and name."""
         found_classes = list(
             filter(lambda x: True if x.name == class_name else False, self.classes)
         )
@@ -662,6 +726,7 @@ class Project(JavaEntity):
         return None
 
     def get_user_type(self, package: str, class_name: str) -> Optional[JavaType]:
+        """Return user-defined `JavaType` filtered by package and class name."""
         types = list(
             filter(
                 lambda x: True
@@ -676,6 +741,7 @@ class Project(JavaEntity):
 
     @cached_property
     def classes(self):
+        """All classes in project."""
         ans = []
         for file in self.java_files:
             ans.extend(file.classes)
@@ -683,6 +749,7 @@ class Project(JavaEntity):
 
     @cached_property
     def methods(self):
+        """All methods in project."""
         ans = []
         for cl in self.classes:
             ans.extend(cl.methods)

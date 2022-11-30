@@ -11,6 +11,7 @@ from threading import Thread
 
 
 def parallel_compare_projects(projects: List[Project]) -> List[Report]:
+    """Compare list of project to produce a list of pairwise comparison results."""
     reports = []
     with mp.Pool(mp.cpu_count() - number_of_unused_cores) as pool:
         for index, project in enumerate(projects[:-1]):
@@ -19,6 +20,7 @@ def parallel_compare_projects(projects: List[Project]) -> List[Report]:
 
 
 def _single_clone(token: str, group_json, project_json, projects_dir: pathlib.Path):
+    """Function used as a target of multiprocessing. Better do not touch this one."""
     url = f"https://git:{token}@gitlab.com/{project_json['path_with_namespace']}.git"
     dir_name = f"{group_json['path']}-{project_json['path']}"
     out = run(
@@ -31,6 +33,7 @@ def _single_clone(token: str, group_json, project_json, projects_dir: pathlib.Pa
 
 
 def parallel_clone_projects(env_file: pathlib.Path, clone_dir: pathlib.Path):
+    """Clone projects from GitLab group specified in the `.env` file."""
     load_dotenv(env_file)
 
     token = os.getenv("TOKEN")
@@ -66,6 +69,8 @@ def parallel_clone_projects(env_file: pathlib.Path, clone_dir: pathlib.Path):
 
 
 def parallel_initialize_projects(projects_dir: pathlib.Path) -> List[Project]:
+    """Loads projects from files to memory, creates a list of `Project` objects.
+    Parameter `projects_dir` is the directory from which the projects shall be loaded."""
     if isinstance(projects_dir, str):
         projects_dir = pathlib.Path(projects_dir)
     if not projects_dir.is_dir():

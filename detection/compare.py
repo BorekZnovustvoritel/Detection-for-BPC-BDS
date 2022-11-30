@@ -1,4 +1,6 @@
+from __future__ import annotations
 from typing import List
+
 
 from detection.definitions import print_whole_tree
 from detection.thresholds import print_threshold
@@ -9,6 +11,7 @@ types_to_compare = {Project, JavaFile, JavaClass, JavaMethod}
 
 
 def print_path(report: Report, indent: int = 0) -> str:
+    """Long string output of the comparison result. Works with result from pairwise matching."""
     if (
         type(report.first) not in types_to_compare
         or type(report.second) not in types_to_compare
@@ -25,8 +28,9 @@ def print_path(report: Report, indent: int = 0) -> str:
     return string
 
 
-def create_excel(reports: List[Report]):
-    excel_handler = ExcelHandler("Output.xlsx")
+def create_excel(reports: List[Report], filename: str = "Output.xlsx"):
+    """Dump all results in xlsx file."""
+    excel_handler = ExcelHandler(filename)
     dict_of_projects = dict()
     for report in reports:
         if report.first.name not in dict_of_projects:
@@ -71,7 +75,10 @@ def create_excel(reports: List[Report]):
 
 
 class ExcelHandler:
+    """Class for encapsulation of xlsx manipulation."""
+
     def __init__(self, name: str):
+        """Parameter `name` is the file name."""
         self.name = name
         self.writer = pd.ExcelWriter(name, engine="xlsxwriter")
         self.workbook = self.writer.book
@@ -84,6 +91,7 @@ class ExcelHandler:
         self.label_format = self.workbook.add_format({"bold": True})
 
     def get_format(self, score: int):
+        """Helper method to determine color for the calculated value."""
         if not isinstance(score, int):
             return None
         if score <= 70:
@@ -93,6 +101,7 @@ class ExcelHandler:
         return self.red_format
 
     def create_detail_sheet(self, report: Report, sheet_name: str):
+        """Adds one sheet to the xlsx file. This sheet contains pairwise comparison result."""
         table_of_reports = self.report_tree_to_list_of_lists(report)
         table_width = max(len(row) for row in table_of_reports)
         sheet = self.workbook.add_worksheet(sheet_name)
@@ -126,10 +135,8 @@ class ExcelHandler:
     def report_tree_to_list_of_lists(
         self, report: Report, indent: int = 0
     ) -> List[List]:
-        if (
-                not print_whole_tree
-                and report.probability < print_threshold
-        ) or (
+        """Helper method to create a table from pairwise comparison result."""
+        if (not print_whole_tree and report.probability < print_threshold) or (
             type(report.first) not in types_to_compare
             and type(report.second) not in types_to_compare
         ):
@@ -150,4 +157,5 @@ class ExcelHandler:
         return list_of_lists
 
     def write(self):
+        """Write the xlsx file."""
         self.writer.close()

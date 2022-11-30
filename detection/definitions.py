@@ -33,3 +33,4 @@ number_of_unused_cores = 1
 print_whole_tree = True
 debug = False
 offline = False
+thorough_scan = True
