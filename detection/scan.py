@@ -104,24 +104,30 @@ class JavaEntity(ABC):
                 < skip_attr_list_threshold
             ):
                 return Report(0, 10, self, other)
+            matrix = []
             self_unused_vals = set(self_attr_val)
             other_unused_vals = set(other_attr_val)
-            while self_unused_vals and other_unused_vals:
-                value = next(iter(self_unused_vals))
-                max_match = max(
-                    value.compare(other_value) for other_value in other_unused_vals
+            for self_val in self_attr_val:
+                matrix.extend(
+                    self_val.compare(other_val) for other_val in other_attr_val
                 )
-                reverse_max_match = max(
-                    v.compare(max_match.second) for v in self_unused_vals
+            while matrix:
+                max_report = max(matrix)
+                self_unused_vals.remove(max_report.first)
+                other_unused_vals.remove(max_report.second)
+                matrix = list(
+                    filter(
+                        lambda x: False
+                        if max_report.second == x.second or max_report.first == x.first
+                        else True,
+                        matrix,
+                    )
                 )
-                winner = max(max_match, reverse_max_match)
-                self_unused_vals.remove(winner.first)
-                other_unused_vals.remove(winner.second)
-                report += winner
-            for unused_val in self_unused_vals:
-                report += Report(0, 10, unused_val, NotFound())
-            for unused_val in other_unused_vals:
-                report += Report(0, 10, NotFound(), unused_val)
+                report += max_report
+            for unused in self_unused_vals:
+                report += Report(0, 10, unused, NotFound())
+            for unused in other_unused_vals:
+                report += Report(0, 10, NotFound(), unused)
         elif isinstance(self_attr_val, JavaEntity):
             report += self_attr_val.compare(other_attr_val)
         else:
