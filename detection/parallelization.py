@@ -1,12 +1,13 @@
 import multiprocessing as mp
 from detection.scan import Project, Report
 from typing import List
-from detection.definitions import number_of_unused_cores
+from detection.definitions import number_of_unused_cores, project_regex
 import requests
 import pathlib
 from dotenv import load_dotenv
 from subprocess import DEVNULL, run
 import os
+import re
 from threading import Thread
 
 
@@ -57,7 +58,7 @@ def parallel_clone_projects(env_file: pathlib.Path, clone_dir: pathlib.Path):
             f"https://gitlab.com/api/v4/groups/{group_json['id']}/projects",
             headers={"PRIVATE-TOKEN": token},
         ).json():
-            if ("projekt" or "project") and "3" in project_json["name"]:
+            if re.match(project_regex, project_json["name"], flags=re.IGNORECASE) is not None:
                 thread = Thread(
                     target=_single_clone,
                     args=(token, group_json, project_json, clone_dir),

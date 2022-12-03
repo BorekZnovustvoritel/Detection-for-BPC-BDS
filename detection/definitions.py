@@ -29,6 +29,7 @@ node_translation_dict = {
 }
 projects_dir = "projects"
 env_file = ".env"
+project_regex = r"proj.*3"
 number_of_unused_cores = 1
 print_whole_tree = True
 debug = False
