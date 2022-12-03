@@ -141,7 +141,7 @@ class NotFound(JavaEntity):
     """Indicate that some part of the projects could not be matched to anything."""
 
     def compare(self, other: JavaEntity) -> Report:
-        pass
+        return Report(0, 10, self, other)
 
     def __init__(self):
         super().__init__()
