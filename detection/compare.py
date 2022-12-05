@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import List
 
 
-from detection.definitions import print_whole_tree
+from detection.definitions import print_whole_tree, output_file_name
 from detection.thresholds import print_threshold
 from detection.scan import Report, Project, JavaFile, JavaClass, JavaMethod, NotFound
 import pandas as pd
@@ -28,7 +28,7 @@ def print_path(report: Report, indent: int = 0) -> str:
     return string
 
 
-def create_excel(reports: List[Report], filename: str = "Output.xlsx"):
+def create_excel(reports: List[Report], filename: str = output_file_name):
     """Dump all results in xlsx file."""
     excel_handler = ExcelHandler(filename)
     dict_of_projects = dict()

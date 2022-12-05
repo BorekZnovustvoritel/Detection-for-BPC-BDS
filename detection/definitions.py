@@ -1,5 +1,6 @@
 import javalang
 from javalang import tree
+from datetime import datetime
 
 translation_dict = {
     "short": "Double",
@@ -35,3 +36,4 @@ print_whole_tree = True
 debug = False
 offline = False
 thorough_scan = True
+output_file_name = f"Output{datetime.now().strftime('%Y-%m-%d_%H-%M')}.xlsx"

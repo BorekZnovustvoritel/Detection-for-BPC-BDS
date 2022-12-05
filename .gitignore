@@ -1,3 +1,5 @@
 .env
-projects/*
-Output.xlsx
+/projects/*
+*.xlsx
+*.xlsx#
+**__pycache__
