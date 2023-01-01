@@ -12,7 +12,7 @@ def get_self_project_root() -> Path:
 
 def get_java_files(project_dir: Union[str, Path]) -> List[Path]:
     """Return all files that contain the `.java` extension."""
-    return list(project_dir.glob("**/*.java"))
+    return [f for f in list(project_dir.glob("**/*.java")) if f.name != "module-info.java"]
 
 
 def get_user_project_root(project_dir: Union[str, Path]) -> Path:
@@ -20,8 +20,7 @@ def get_user_project_root(project_dir: Union[str, Path]) -> Path:
     if isinstance(project_dir, str):
         project_dir = Path(project_dir)
     root_paths = list(project_dir.glob("**/src/main/java"))
-    if len(root_paths) > 2:
-        raise FileExistsError(f"Found too many project roots: {root_paths}")
+    root_paths.sort(key=lambda x: len(x.parts))
     if len(root_paths) < 1:
         return project_dir
     return root_paths[0]
@@ -31,12 +30,17 @@ def get_ast(java_file: Union[str, Path]) -> javalang.tree.CompilationUnit:
     """Return AST of the java file."""
     with open(java_file, "r") as inp_file:
         lines = "".join(inp_file.readlines())
-    return javalang.parse.parse(lines)
+    try:
+        return javalang.parse.parse(lines)
+    except javalang.parser.JavaSyntaxError:
+        print(f"{java_file} contains syntax error")
 
 
 def get_packages(project_dir: Union[str, Path]) -> Set[str]:
     """Return all packages located in the project."""
     ans = set()
     for file in get_java_files(project_dir):
-        ans.add(get_ast(file).package.name)
+        compilation_unit = get_ast(file)
+        if compilation_unit and compilation_unit.package:
+            ans.add(compilation_unit.package.name)
     return ans

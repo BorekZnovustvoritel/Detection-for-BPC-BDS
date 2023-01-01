@@ -14,9 +14,10 @@ from threading import Thread
 def parallel_compare_projects(projects: List[Project]) -> List[Report]:
     """Compare list of project to produce a list of pairwise comparison results."""
     reports = []
+    actual_projects = list(filter(lambda x: True if x.java_files else False, projects))
     with mp.Pool(mp.cpu_count() - number_of_unused_cores) as pool:
-        for index, project in enumerate(projects[:-1]):
-            reports.extend(pool.map(project.compare, projects[index + 1 :]))
+        for index, project in enumerate(actual_projects[:-1]):
+            reports.extend(pool.map(project.compare, actual_projects[index + 1:]))
     return reports
 
 
@@ -33,8 +34,9 @@ def _single_clone(token: str, group_json, project_json, projects_dir: pathlib.Pa
         run(["git", "-C", f"{repo_dir.absolute()}", "pull"])
 
 
-def parallel_clone_projects(env_file: pathlib.Path, clone_dir: pathlib.Path):
-    """Clone projects from GitLab group specified in the `.env` file."""
+def parallel_clone_projects(env_file: pathlib.Path, clone_dir: pathlib.Path) -> List[str]:
+    """Clone projects from GitLab group specified in the `.env` file.
+    Returns list of groups where no suitable project was found."""
     load_dotenv(env_file)
 
     token = os.getenv("TOKEN")
@@ -50,23 +52,37 @@ def parallel_clone_projects(env_file: pathlib.Path, clone_dir: pathlib.Path):
     if not isinstance(clone_dir, pathlib.Path):
         clone_dir = pathlib.Path(clone_dir)
     threads = []
-    for group_json in requests.get(
-        f"https://gitlab.com/api/v4/groups/{group_id}/subgroups",
-        headers={"PRIVATE-TOKEN": token},
-    ).json():
-        for project_json in requests.get(
-            f"https://gitlab.com/api/v4/groups/{group_json['id']}/projects",
+    not_found_projects_in = []
+    page = 1
+    subgroups_json = requests.get(
+            f"https://gitlab.com/api/v4/groups/{group_id}/subgroups?page={page}",
             headers={"PRIVATE-TOKEN": token},
-        ).json():
-            if re.match(project_regex, project_json["name"], flags=re.IGNORECASE) is not None:
-                thread = Thread(
-                    target=_single_clone,
-                    args=(token, group_json, project_json, clone_dir),
-                )
-                threads.append(thread)
-                thread.start()
+        ).json()
+    while subgroups_json:
+        for group_json in subgroups_json:
+            projects_found = 0
+            for project_json in requests.get(
+                f"https://gitlab.com/api/v4/groups/{group_json['id']}/projects",
+                headers={"PRIVATE-TOKEN": token},
+            ).json():
+                if re.match(project_regex, project_json["name"], flags=re.IGNORECASE) is not None:
+                    thread = Thread(
+                        target=_single_clone,
+                        args=(token, group_json, project_json, clone_dir),
+                    )
+                    threads.append(thread)
+                    thread.start()
+                    projects_found += 1
+            if projects_found != 1:
+                not_found_projects_in.append(group_json['path'])
+        page += 1
+        subgroups_json = requests.get(
+            f"https://gitlab.com/api/v4/groups/{group_id}/subgroups?page={page}",
+            headers={"PRIVATE-TOKEN": token},
+        ).json()
     for thread in threads:
         thread.join()
+    return not_found_projects_in
 
 
 def parallel_initialize_projects(projects_dir: pathlib.Path) -> List[Project]:

@@ -18,7 +18,7 @@ if __name__ == "__main__":
         projects_dir_path = Path(get_self_project_root() / projects_dir)
         if not projects_dir_path.exists():
             os.mkdir(projects_dir_path)
-
+    not_founds = []
     if not offline:
         env_file_path = Path(get_self_project_root() / env_file)
         if not env_file_path.exists():
@@ -27,7 +27,7 @@ if __name__ == "__main__":
             )
         print("Cloning from GitLab...")
         start = datetime.datetime.now()
-        parallel_clone_projects(env_file_path, projects_dir_path)
+        not_founds = parallel_clone_projects(env_file_path, projects_dir_path)
         print(f"Cloning from GitLab took {datetime.datetime.now() - start}")
 
     after_cloning = datetime.datetime.now()
@@ -46,5 +46,5 @@ if __name__ == "__main__":
             )
             print(print_path(report))
 
-    create_excel(reports)
+    create_excel(reports, list(filter(lambda x: True if not x.java_files else False, projects)), not_founds)
     print(f"Creating Excel took {datetime.datetime.now() - after_comparison}.")

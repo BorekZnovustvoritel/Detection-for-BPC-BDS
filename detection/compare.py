@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List
+from typing import List, Iterable
 
 
 from detection.definitions import print_whole_tree, output_file_name
@@ -28,7 +28,7 @@ def print_path(report: Report, indent: int = 0) -> str:
     return string
 
 
-def create_excel(reports: List[Report], filename: str = output_file_name):
+def create_excel(reports: List[Report], skipped: Iterable[Project], not_handed: Iterable[str], filename: str = output_file_name):
     """Dump all results in xlsx file."""
     excel_handler = ExcelHandler(filename)
     dict_of_projects = dict()
@@ -57,6 +57,9 @@ def create_excel(reports: List[Report], filename: str = output_file_name):
             cell_format=excel_handler.get_format(report.probability),
         )
         excel_handler.create_detail_sheet(report, detail_name)
+    for project_name in dict_of_projects:
+        best_match = max(filter(lambda x: True if x.first.name == project_name or x.second.name == project_name else False, reports))
+        excel_handler.heatmap_sheet.write(dict_of_projects[project_name], len(dict_of_projects.keys()) + 1, best_match.first.name if best_match.first.name != project_name else best_match.second.name)
     max_name_length = max([len(n) for n in dict_of_projects.keys()])
     for project_name in dict_of_projects.keys():
         excel_handler.heatmap_sheet.write(
@@ -71,6 +74,9 @@ def create_excel(reports: List[Report], filename: str = output_file_name):
     excel_handler.heatmap_sheet.set_column(0, 0, max_name_length)
     excel_handler.heatmap_sheet.set_column(1, len(dict_of_projects.keys()), 5)
     excel_handler.heatmap_sheet.set_row(0, 6 * max_name_length)
+    excel_handler.heatmap_last_col = len(dict_of_projects.keys()) + 1
+    excel_handler.add_note("Projects not containing Java Files:", [x.name for x in skipped])
+    excel_handler.add_note("Project solution not found in groups:", not_handed)
     excel_handler.write()
 
 
@@ -89,6 +95,8 @@ class ExcelHandler:
         self.top_label_format = self.workbook.add_format({"bold": True})
         self.top_label_format.set_rotation(90)
         self.label_format = self.workbook.add_format({"bold": True})
+        self.heatmap_last_col = 0
+        self.note_column = 0
 
     def get_format(self, score: int):
         """Helper method to determine color for the calculated value."""
@@ -155,6 +163,14 @@ class ExcelHandler:
         for child in report.child_reports:
             list_of_lists.extend(self.report_tree_to_list_of_lists(child, indent + 1))
         return list_of_lists
+
+    def add_note(self, note_header: str, note_lines: Iterable[str]):
+        row_num_to_write = self.heatmap_last_col + 1
+        self.heatmap_sheet.write(row_num_to_write, self.note_column, note_header, self.label_format)
+        for line in note_lines:
+            row_num_to_write += 1
+            self.heatmap_sheet.write(row_num_to_write, self.note_column, line)
+        self.note_column += 1
 
     def write(self):
         """Write the xlsx file."""

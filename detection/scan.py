@@ -620,8 +620,10 @@ class JavaFile(JavaEntity):
         self.name: str = self.path.name
         self.name_without_appendix: str = self.name.replace(".java", "")
         compilation_unit = get_ast(path)
+        if not compilation_unit:
+            raise ValueError(f"Invalid Java file, compilation failed: {path}")
         self.project: Project = project
-        self.package: str = compilation_unit.package.name
+        self.package: str = getattr(compilation_unit.package, "name", "")
         self.wildcard_imports = [i.path for i in compilation_unit.imports if i.wildcard]
         self.imports: List[str] = [
             i.path for i in compilation_unit.imports if not i.wildcard
@@ -683,8 +685,10 @@ class Project(JavaEntity):
         self.java_files: List[JavaFile] = []
         java_files = get_java_files(self.path)
         for file in java_files:
-            java_file = JavaFile(file, self)
-            self.java_files.append(java_file)
+            try:
+                self.java_files.append(JavaFile(file, self))
+            except ValueError:
+                continue
         for file in self.java_files:
             for w_import in file.wildcard_imports:
                 file.import_types.extend(
@@ -692,7 +696,8 @@ class Project(JavaEntity):
                 )
         for t in self.user_types.keys():
             type_class = self.get_class(t.package, t.name)
-            self.user_types.update({t: type_class.get_non_user_defined_types()})
+            if type_class:
+                self.user_types.update({t: type_class.get_non_user_defined_types()})
 
     def get_file(self, package: str, class_name: str) -> Optional[JavaFile]:
         """Returns `JavaFile` object filtered by package and class name."""
@@ -728,7 +733,7 @@ class Project(JavaEntity):
         )
         if len(found_classes) == 1:
             return found_classes[0]
-        print(f"Project.get_class: Cannot find {package}.{class_name}!")
+        print(f"Project.get_class: Cannot find {package}.{class_name} in {self.name}!")
         return None
 
     def get_user_type(self, package: str, class_name: str) -> Optional[JavaType]:
