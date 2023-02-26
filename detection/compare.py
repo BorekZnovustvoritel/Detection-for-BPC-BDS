@@ -4,10 +4,11 @@ from typing import List, Iterable
 
 from detection.definitions import print_whole_tree, output_file_name
 from detection.thresholds import print_threshold
-from detection.scan import Report, Project, JavaFile, JavaClass, JavaMethod, NotFound
+from detection.java_scan import JavaProject, JavaFile, JavaClass, JavaMethod
+from detection.abstract_scan import Report, NotFound
 import pandas as pd
 
-types_to_compare = {Project, JavaFile, JavaClass, JavaMethod}
+types_to_compare = {JavaProject, JavaFile, JavaClass, JavaMethod}
 
 
 def print_path(report: Report, indent: int = 0) -> str:
@@ -28,7 +29,7 @@ def print_path(report: Report, indent: int = 0) -> str:
     return string
 
 
-def create_excel(reports: List[Report], skipped: Iterable[Project], not_handed: Iterable[str], filename: str = output_file_name):
+def create_excel(reports: List[Report], skipped: Iterable[JavaProject], not_handed: Iterable[str], filename: str = output_file_name):
     """Dump all results in xlsx file."""
     excel_handler = ExcelHandler(filename)
     dict_of_projects = dict()

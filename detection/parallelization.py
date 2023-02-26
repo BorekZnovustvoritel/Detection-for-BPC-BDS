@@ -1,5 +1,6 @@
 import multiprocessing as mp
-from detection.scan import Project, Report
+from detection.java_scan import JavaProject
+from detection.abstract_scan import Report
 from typing import List
 from detection.definitions import number_of_unused_cores, project_regex
 import requests
@@ -11,7 +12,7 @@ import re
 from threading import Thread
 
 
-def parallel_compare_projects(projects: List[Project]) -> List[Report]:
+def parallel_compare_projects(projects: List[JavaProject]) -> List[Report]:
     """Compare list of project to produce a list of pairwise comparison results."""
     reports = []
     actual_projects = list(filter(lambda x: True if x.java_files else False, projects))
@@ -85,7 +86,7 @@ def parallel_clone_projects(env_file: pathlib.Path, clone_dir: pathlib.Path) -> 
     return not_found_projects_in
 
 
-def parallel_initialize_projects(projects_dir: pathlib.Path) -> List[Project]:
+def parallel_initialize_projects(projects_dir: pathlib.Path) -> List[JavaProject]:
     """Loads projects from files to memory, creates a list of `Project` objects.
     Parameter `projects_dir` is the directory from which the projects shall be loaded."""
     if isinstance(projects_dir, str):
@@ -93,5 +94,5 @@ def parallel_initialize_projects(projects_dir: pathlib.Path) -> List[Project]:
     if not projects_dir.is_dir():
         raise EnvironmentError("Project directory could not be found!")
     with mp.Pool(mp.cpu_count() - number_of_unused_cores) as pool:
-        projects = pool.map(Project, projects_dir.iterdir())
+        projects = pool.map(JavaProject, projects_dir.iterdir())
     return projects

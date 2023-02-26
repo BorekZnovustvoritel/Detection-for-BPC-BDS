@@ -2,153 +2,19 @@ from __future__ import annotations
 
 import pathlib
 from functools import cached_property
-from math import sqrt
-from abc import ABC, abstractmethod
-from functools import total_ordering
 
 import javalang
 import javalang.tree
 from typing import List, Union, Set, Optional, Dict, Type
 import re
 
-from detection.definitions import translation_dict, node_translation_dict, thorough_scan
-from detection.thresholds import skip_attr_list_threshold, method_interface_threshold
-from detection.utils import get_ast, get_user_project_root, get_packages, get_java_files
+from detection.abstract_scan import Report, ComparableEntity
+from detection.definitions import translation_dict, node_translation_dict
+from detection.thresholds import method_interface_threshold
+from detection.utils import get_java_ast, get_user_project_root, get_packages, get_java_files, tree_to_dict, search_for_types
 
 
-@total_ordering
-class Report:
-    """Pairwise comparison result. Used as Model from the M-V-C architecture."""
-
-    def __init__(
-        self, probability: int, weight: int, first: JavaEntity, second: JavaEntity
-    ):
-        self.probability: int = probability
-        self.weight: int = weight
-        self.first: JavaEntity = first
-        self.second: JavaEntity = second
-        self.child_reports: List[Report] = []
-
-    def __lt__(self, other: Report):
-        return (
-            self.probability < other.probability
-            if self.probability != other.probability
-            else self.weight < other.weight
-        )
-
-    def __eq__(self, other: Report):
-        return self.probability == other.probability and self.weight == other.weight
-
-    def __repr__(self):
-        return (
-            f"< Report, probability: {self.probability}, comparing entities: {self.first.name}, "
-            f"{self.second.name}, Child reports: {self.child_reports}>"
-        )
-
-    def __add__(self, other: Report):
-        weight = self.weight + other.weight
-        if weight == 0:
-            weight = 1
-        report = Report(
-            (self.probability * self.weight + other.probability * other.weight)
-            // weight,
-            (self.weight + other.weight),
-            self.first,
-            self.second,
-        )
-        if isinstance(self.first, type(other.first)) or isinstance(
-            self.second, type(other.second)
-        ):
-            report.child_reports.extend(self.child_reports + other.child_reports)
-        else:
-            report.child_reports.extend(self.child_reports)
-            report.child_reports.append(other)
-        return report
-
-
-class JavaEntity(ABC):
-    """Abstract object class for all the comparable parts of projects."""
-
-    def __init__(self):
-        self.name: str = ""
-
-    def __repr__(self):
-        return f"<{self.__class__.__name__}: {self.__dict__}>"
-
-    @abstractmethod
-    def compare(self, other: JavaEntity) -> Report:
-        """Compare two objects of the same class inherited from `JavaEntity`. Produces `Report` object."""
-        pass
-
-    def compare_parts(self, other: JavaEntity, attr: str) -> Report:
-        """Helper method that compares comparable attributes of objects.
-        This method is responsible for the hierarchical behavior of comparisons."""
-        if not isinstance(other, type(self)):
-            raise TypeError("Cannot compare different types of JavaEntity!")
-        report = Report(0, 0, self, other)
-        self_attr_val = getattr(self, attr, None)
-        other_attr_val = getattr(other, attr, None)
-        if self_attr_val is None:
-            raise ValueError(
-                f"Instance of '{type(self)}' does not have attribute '{attr}'!"
-            )
-        if isinstance(self_attr_val, List):
-            if not self_attr_val or not other_attr_val:
-                return Report(0, 0, self, other)
-            if not thorough_scan and (
-                1
-                - sqrt(
-                    abs(len(self_attr_val) - len(other_attr_val))
-                    / (len(self_attr_val) + len(other_attr_val))
-                )
-                < skip_attr_list_threshold
-            ):
-                return Report(0, 10, self, other)
-            matrix = []
-            self_unused_vals = set(self_attr_val)
-            other_unused_vals = set(other_attr_val)
-            for self_val in self_attr_val:
-                matrix.extend(
-                    self_val.compare(other_val) for other_val in other_attr_val
-                )
-            while matrix:
-                max_report = max(matrix)
-                self_unused_vals.remove(max_report.first)
-                other_unused_vals.remove(max_report.second)
-                matrix = list(
-                    filter(
-                        lambda x: False
-                        if max_report.second == x.second or max_report.first == x.first
-                        else True,
-                        matrix,
-                    )
-                )
-                report += max_report
-            for unused in self_unused_vals:
-                report += Report(0, 10, unused, NotFound())
-            for unused in other_unused_vals:
-                report += Report(0, 10, NotFound(), unused)
-        elif isinstance(self_attr_val, JavaEntity):
-            report += self_attr_val.compare(other_attr_val)
-        else:
-            raise ValueError(
-                f"Cannot compare attribute '{attr}' of instance of '{type(self)}'!"
-            )
-        return report
-
-
-class NotFound(JavaEntity):
-    """Indicate that some part of the projects could not be matched to anything."""
-
-    def compare(self, other: JavaEntity) -> Report:
-        return Report(0, 10, self, other)
-
-    def __init__(self):
-        super().__init__()
-        self.name: str = "NOT FOUND"
-
-
-class JavaModifier(JavaEntity):
+class JavaModifier(ComparableEntity):
     """Modifiers of classes, methods or variables."""
 
     def __init__(self, name: str):
@@ -163,10 +29,10 @@ class JavaModifier(JavaEntity):
             return Report(0, 10, self, other)
 
 
-class JavaType(JavaEntity):
+class JavaType(ComparableEntity):
     """Data type of variables or arguments, return type of methods. Can be user-implemented, imported, basic or None."""
 
-    def __init__(self, type_name: str, package: str, project: Project):
+    def __init__(self, type_name: str, package: str, project: JavaProject):
         """Parameter `type_name` is the type identifier represented in source code,
         `package` represents the package where this type was declared
          and `project` keeps track of the parent `Project` object."""
@@ -218,7 +84,7 @@ class JavaType(JavaEntity):
         return self.name.__hash__() + self.package.__hash__()
 
 
-class JavaVariable(JavaEntity):
+class JavaVariable(ComparableEntity):
     """Holds reference to a variable from the source code."""
 
     def __init__(
@@ -317,7 +183,7 @@ class JavaMethodInvocation:
                 return m[0]
 
 
-class JavaStatementBlock(JavaEntity):
+class JavaStatementBlock(ComparableEntity):
     """Statements from the source code between semicolons contained in the body of a method."""
 
     def __init__(self, statement: javalang.tree.Statement, java_method: JavaMethod):
@@ -327,9 +193,9 @@ class JavaStatementBlock(JavaEntity):
         self.name: str = f"Statement {statement.position}"
         self.java_method: JavaMethod = java_method
         self.local_variables: List[JavaVariable] = []
-        searched_nodes = self._search_for_types(
+        searched_nodes = search_for_types(
             statement,
-            {javalang.tree.VariableDeclaration, javalang.tree.MethodInvocation},
+            {javalang.tree.VariableDeclaration, javalang.tree.MethodInvocation}, javalang.tree.Node
         )
         for declaration in searched_nodes.get(javalang.tree.VariableDeclaration, []):
             for declarator in declaration.declarators:
@@ -342,7 +208,7 @@ class JavaStatementBlock(JavaEntity):
             JavaMethodInvocation(m, self)
             for m in searched_nodes.get(javalang.tree.MethodInvocation, [])
         ]
-        self.parts: Dict[Type, int] = self._tree_to_dict(statement)
+        self.parts: Dict[Type, int] = tree_to_dict(statement, javalang.tree.Node)
 
     @cached_property
     def statements_from_invocations(self) -> List[JavaStatementBlock]:
@@ -397,66 +263,8 @@ class JavaStatementBlock(JavaEntity):
                     report += Report(0, 10, self, other)
         return report
 
-    def _search_for_types(
-        self, statement: javalang.tree.Node, block_types: Set[Type]
-    ) -> Dict[Type, List[javalang.tree.Node]]:
-        """Go through AST and fetch subtrees rooted in specified node types.
-        Parameter `statement` represents AST, `block_types` is set of searched node types.
-        Returns dictionary structured as so: `{NodeType1: [subtree1, subtree2, ...], NodeType2: [...]}`"""
-        ans = {}
-        if not isinstance(statement, javalang.tree.Node):
-            return ans
-        node_type = type(statement)
-        if node_type in block_types:
-            if node_type in ans.keys():
-                ans.update(
-                    {
-                        node_type: ans[node_type]
-                        + [
-                            statement,
-                        ]
-                    }
-                )
-            else:
-                ans.update(
-                    {
-                        node_type: [
-                            statement,
-                        ]
-                    }
-                )
-        for attribute in getattr(statement, "attrs", []):
-            child = getattr(statement, attribute, None)
-            if isinstance(child, javalang.tree.Node):
-                dict_to_add = self._search_for_types(child, block_types)
-                for key in dict_to_add:
-                    if key in ans.keys():
-                        ans.update({key: ans[key] + dict_to_add[key]})
-                    else:
-                        ans.update(dict_to_add)
-        return ans
 
-    def _tree_to_dict(self, tree: javalang.tree.Node) -> Dict[Type, int]:
-        """Flattens AST to dictionary structured as so: {NodeType: number_of_occurrences}"""
-        ans: Dict[Type, int] = {}
-        node_type = type(tree)
-        if node_type in ans.keys():
-            ans.update({node_type: ans.get(node_type) + 1})
-        else:
-            ans.update({node_type: 1})
-        for attribute in getattr(tree, "attrs", []):
-            child = getattr(tree, attribute, None)
-            if not isinstance(child, javalang.tree.Node):
-                continue
-            for key in self._tree_to_dict(child):
-                if key in ans.keys():
-                    ans.update({key: ans[key] + 1})
-                else:
-                    ans.update({key: 1})
-        return ans
-
-
-class JavaParameter(JavaEntity):
+class JavaParameter(ComparableEntity):
     """Arguments of methods."""
 
     def __init__(self, parameter_name: str, parameter_type: str, method: JavaMethod):
@@ -477,7 +285,7 @@ class JavaParameter(JavaEntity):
         return self.compare_parts(other, "type")
 
 
-class JavaMethod(JavaEntity):
+class JavaMethod(ComparableEntity):
     """Method object from the source code."""
 
     def __init__(
@@ -551,7 +359,7 @@ class JavaMethod(JavaEntity):
         return self.statement_blocks + self.statements_from_invocations
 
 
-class JavaClass(JavaEntity):
+class JavaClass(ComparableEntity):
     """Representation of classes from the source code."""
 
     def __init__(self, java_class: javalang.tree.ClassDeclaration, java_file: JavaFile):
@@ -607,10 +415,10 @@ class JavaClass(JavaEntity):
         return None
 
 
-class JavaFile(JavaEntity):
+class JavaFile(ComparableEntity):
     """Represents files that end with the '.java' extension."""
 
-    def __init__(self, path: Union[str, pathlib.Path], project: Project):
+    def __init__(self, path: Union[str, pathlib.Path], project: JavaProject):
         """Parameter `path` is path to the file,
         `project` is parent `Project` instance."""
         super().__init__()
@@ -619,10 +427,10 @@ class JavaFile(JavaEntity):
         )
         self.name: str = self.path.name
         self.name_without_appendix: str = self.name.replace(".java", "")
-        compilation_unit = get_ast(path)
+        compilation_unit = get_java_ast(path)
         if not compilation_unit:
             raise ValueError(f"Invalid Java file, compilation failed: {path}")
-        self.project: Project = project
+        self.project: JavaProject = project
         self.package: str = getattr(compilation_unit.package, "name", "")
         self.wildcard_imports = [i.path for i in compilation_unit.imports if i.wildcard]
         self.imports: List[str] = [
@@ -665,7 +473,7 @@ class JavaFile(JavaEntity):
         return JavaType(type_name, "", self.project)
 
 
-class Project(JavaEntity):
+class JavaProject(ComparableEntity):
     """Represents whole project that needs to be compared with other projects."""
 
     def __init__(self, path: Union[str, pathlib.Path]):
@@ -766,6 +574,6 @@ class Project(JavaEntity):
             ans.extend(cl.methods)
         return ans
 
-    def compare(self, other: Project) -> Report:
+    def compare(self, other: JavaProject) -> Report:
         report = self.compare_parts(other, "java_files")
         return report
