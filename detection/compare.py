@@ -5,10 +5,11 @@ from typing import List, Iterable
 from detection.definitions import print_whole_tree, output_file_name
 from detection.thresholds import print_threshold
 from detection.java_scan import JavaProject, JavaFile, JavaClass, JavaMethod
+from detection.py_scan import PythonProject, PythonFile, PythonClass, PythonFunction
 from detection.abstract_scan import Report, NotFound
 import pandas as pd
 
-types_to_compare = {JavaProject, JavaFile, JavaClass, JavaMethod}
+types_to_compare = {JavaProject, JavaFile, JavaClass, JavaMethod, PythonProject, PythonFile, PythonClass, PythonFunction}
 
 
 def print_path(report: Report, indent: int = 0) -> str:
@@ -112,7 +113,7 @@ class ExcelHandler:
     def create_detail_sheet(self, report: Report, sheet_name: str):
         """Adds one sheet to the xlsx file. This sheet contains pairwise comparison result."""
         table_of_reports = self.report_tree_to_list_of_lists(report)
-        table_width = max(len(row) for row in table_of_reports)
+        table_width = max([len(row) for row in table_of_reports] + [0])
         sheet = self.workbook.add_worksheet(sheet_name)
         column_lengths = {i: 0 for i in range(table_width - 1)}
         for row_idx, row in enumerate(table_of_reports):

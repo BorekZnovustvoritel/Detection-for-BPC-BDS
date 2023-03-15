@@ -8,10 +8,10 @@ import javalang.tree
 from typing import List, Union, Set, Optional, Dict, Type
 import re
 
-from detection.abstract_scan import Report, ComparableEntity
+from detection.abstract_scan import Report, ComparableEntity, AbstractStatementBlock
 from detection.definitions import translation_dict, node_translation_dict
 from detection.thresholds import method_interface_threshold
-from detection.utils import get_java_ast, get_user_project_root, get_packages, get_java_files, tree_to_dict, search_for_types
+from detection.utils import get_java_ast, get_user_project_root, get_packages, get_java_files
 
 
 class JavaModifier(ComparableEntity):
@@ -183,19 +183,19 @@ class JavaMethodInvocation:
                 return m[0]
 
 
-class JavaStatementBlock(ComparableEntity):
+class JavaStatementBlock(AbstractStatementBlock):
     """Statements from the source code between semicolons contained in the body of a method."""
 
     def __init__(self, statement: javalang.tree.Statement, java_method: JavaMethod):
         """Parameter `statement` requires appropriate AST subtree,
         `java_method` holds reference to parent `JavaMethod` object."""
-        super().__init__()
+        super().__init__(statement, javalang.tree.Statement)
         self.name: str = f"Statement {statement.position}"
         self.java_method: JavaMethod = java_method
         self.local_variables: List[JavaVariable] = []
-        searched_nodes = search_for_types(
+        searched_nodes = self._search_for_types(
             statement,
-            {javalang.tree.VariableDeclaration, javalang.tree.MethodInvocation}, javalang.tree.Node
+            {javalang.tree.VariableDeclaration, javalang.tree.MethodInvocation}
         )
         for declaration in searched_nodes.get(javalang.tree.VariableDeclaration, []):
             for declarator in declaration.declarators:
@@ -208,7 +208,6 @@ class JavaStatementBlock(ComparableEntity):
             JavaMethodInvocation(m, self)
             for m in searched_nodes.get(javalang.tree.MethodInvocation, [])
         ]
-        self.parts: Dict[Type, int] = tree_to_dict(statement, javalang.tree.Node)
 
     @cached_property
     def statements_from_invocations(self) -> List[JavaStatementBlock]:
@@ -221,47 +220,6 @@ class JavaStatementBlock(ComparableEntity):
             if m is not None:
                 ans.extend(m.statement_blocks)
         return ans
-
-    def compare(self, other: JavaStatementBlock) -> Report:
-        report = Report(0, 0, self, other)
-        for node_type in self.parts:
-            self_occurrences = self.parts[node_type]
-            other_occurrences = other.parts.get(node_type, 0)
-            if other_occurrences > 0:
-                report += Report(
-                    int(
-                        100
-                        - 100
-                        * (
-                            abs(self_occurrences - other_occurrences)
-                            / (self_occurrences + other_occurrences)
-                        )
-                    ),
-                    10,
-                    self,
-                    other,
-                )
-            else:
-                backup_node_type = node_translation_dict.get(node_type, None)
-                if backup_node_type is not None:
-                    other_occurrences = other.parts.get(backup_node_type, 0)
-                    if other_occurrences > 0:
-                        report += Report(
-                            int(
-                                50
-                                - 50
-                                * (
-                                    abs(self_occurrences - other_occurrences)
-                                    / (self_occurrences + other_occurrences)
-                                )
-                            ),
-                            10,
-                            self,
-                            other,
-                        )
-                else:
-                    report += Report(0, 10, self, other)
-        return report
 
 
 class JavaParameter(ComparableEntity):
@@ -539,6 +497,10 @@ class JavaProject(ComparableEntity):
         found_classes = list(
             filter(lambda x: True if x.name == class_name else False, self.classes)
         )
+        if len(found_classes) == 1:
+            return found_classes[0]
+        if len(found_classes) > 1:
+            found_classes = list(filter(lambda x: True if x.java_file.package == package else False, found_classes))
         if len(found_classes) == 1:
             return found_classes[0]
         print(f"Project.get_class: Cannot find {package}.{class_name} in {self.name}!")

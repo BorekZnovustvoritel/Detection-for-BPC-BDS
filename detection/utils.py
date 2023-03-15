@@ -60,61 +60,7 @@ def get_packages(project_dir: Union[str, Path]) -> Set[str]:
     return ans
 
 
-def tree_to_dict(node, realm: Type) -> dict[Type, int]:
-    ans: Dict[Type, int] = {}
-    node_type = type(node)
-    if node_type in ans.keys():
-        ans.update({node_type: ans.get(node_type) + 1})
-    else:
-        ans.update({node_type: 1})
-    for attribute in [a for a in dir(node) if not a.startswith('_')]:
-        child = getattr(node, attribute, None)
-        if not isinstance(child, realm):
-            continue
-        child_dict = tree_to_dict(child, realm)
-        for key in child_dict:
-            if key in ans.keys():
-                ans.update({key: ans[key] + child_dict[key]})
-            else:
-                ans.update({key: child_dict[key]})
-    return ans
-
-
-def search_for_types(
-    statement, block_types: Set[Type], realm: Type
-) -> Dict[Type, List]:
-    """Go through AST and fetch subtrees rooted in specified node types.
-    Parameter `statement` represents AST, `block_types` is set of searched node types.
-    Returns dictionary structured as so: `{NodeType1: [subtree1, subtree2, ...], NodeType2: [...]}`"""
-    ans = {}
-    if not isinstance(statement, realm):
-        return ans
-    node_type = type(statement)
-    if node_type in block_types:
-        if node_type in ans.keys():
-            ans.update(
-                {
-                    node_type: ans[node_type]
-                    + [
-                        statement,
-                    ]
-                }
-            )
-        else:
-            ans.update(
-                {
-                    node_type: [
-                        statement,
-                    ]
-                }
-            )
-    for attribute in getattr(statement, "attrs", []):
-        child = getattr(statement, attribute, None)
-        if isinstance(child, realm):
-            dict_to_add = search_for_types(child, block_types, realm)
-            for key in dict_to_add:
-                if key in ans.keys():
-                    ans.update({key: ans[key] + dict_to_add[key]})
-                else:
-                    ans.update({key: dict_to_add[key]})
-    return ans
+def calculate_score_based_on_numbers(first: int, second:int) -> int:
+    if first == 0 and second == 0:
+        return 100
+    return int(100 - 100 * (abs(first - second) / (first + second)))

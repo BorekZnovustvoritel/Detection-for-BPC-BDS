@@ -3,10 +3,11 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from functools import total_ordering
 from math import sqrt
-from typing import List
+from typing import List, Dict, Type, Set
 
-from detection.definitions import thorough_scan
+from detection.definitions import thorough_scan, node_translation_dict
 from detection.thresholds import skip_attr_list_threshold
+from detection.utils import calculate_score_based_on_numbers
 
 
 @total_ordering
@@ -128,6 +129,98 @@ class ComparableEntity(ABC):
                 f"Cannot compare attribute '{attr}' of instance of '{type(self)}'!"
             )
         return report
+
+class AbstractStatementBlock(ComparableEntity, ABC):
+    def compare(self, other: AbstractStatementBlock) -> Report:
+        report = Report(0, 0, self, other)
+        for node_type in self.parts:
+            self_occurrences = self.parts[node_type]
+            other_occurrences = other.parts.get(node_type, 0)
+            if other_occurrences > 0:
+                report += Report(
+                    calculate_score_based_on_numbers(self_occurrences, other_occurrences),
+                    10,
+                    self,
+                    other,
+                )
+            else:
+                backup_node_type = node_translation_dict.get(node_type, None)
+                if backup_node_type is not None:
+                    other_occurrences = other.parts.get(backup_node_type, 0)
+                    if other_occurrences > 0:
+                        report += Report(
+                            calculate_score_based_on_numbers(self_occurrences, other_occurrences) // 2,
+                            10,
+                            self,
+                            other,
+                        )
+                else:
+                    report += Report(0, 10, self, other)
+        return report
+
+    def __init__(self, statement, realm: Type):
+        super().__init__()
+        self.statement = statement
+        self.realm = realm
+        self.parts: Dict[Type, int] = self._tree_to_dict(statement)
+
+    def _tree_to_dict(self, node) -> dict[Type, int]:
+        ans: Dict[Type, int] = {}
+        node_type = type(node)
+        if node_type in ans.keys():
+            ans.update({node_type: ans.get(node_type) + 1})
+        else:
+            ans.update({node_type: 1})
+        for attribute in [a for a in dir(node) if not a.startswith('_')]:
+            child = getattr(node, attribute, None)
+            if not isinstance(child, self.realm):
+                continue
+            child_dict = self._tree_to_dict(child)
+            for key in child_dict:
+                if key in ans.keys():
+                    ans.update({key: ans[key] + child_dict[key]})
+                else:
+                    ans.update({key: child_dict[key]})
+        return ans
+
+    def _search_for_types(self,
+            statement, block_types: Set[Type]
+    ) -> Dict[Type, List]:
+        """Go through AST and fetch subtrees rooted in specified node types.
+        Parameter `statement` represents AST, `block_types` is set of searched node types.
+        Returns dictionary structured as so: `{NodeType1: [subtree1, subtree2, ...], NodeType2: [...]}`"""
+        ans = {}
+        if not isinstance(statement, self.realm):
+            return ans
+        node_type = type(statement)
+        if node_type in block_types:
+            if node_type in ans.keys():
+                ans.update(
+                    {
+                        node_type: ans[node_type]
+                                   + [
+                                       statement,
+                                   ]
+                    }
+                )
+            else:
+                ans.update(
+                    {
+                        node_type: [
+                            statement,
+                        ]
+                    }
+                )
+        for attribute in getattr(statement, "attrs", []):
+            child = getattr(statement, attribute, None)
+            if isinstance(child, self.realm):
+                dict_to_add = self._search_for_types(child, block_types)
+                for key in dict_to_add:
+                    if key in ans.keys():
+                        ans.update({key: ans[key] + dict_to_add[key]})
+                    else:
+                        ans.update({key: dict_to_add[key]})
+        return ans
 
 
 class NotFound(ComparableEntity):
