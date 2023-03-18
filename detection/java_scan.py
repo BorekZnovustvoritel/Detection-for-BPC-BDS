@@ -8,7 +8,7 @@ import javalang.tree
 from typing import List, Union, Set, Optional, Dict, Type
 import re
 
-from detection.abstract_scan import Report, ComparableEntity, AbstractStatementBlock
+from detection.abstract_scan import Report, ComparableEntity, AbstractStatementBlock, AbstractProject
 from detection.definitions import translation_dict, node_translation_dict
 from detection.thresholds import method_interface_threshold
 from detection.utils import get_java_ast, get_user_project_root, get_packages, get_java_files
@@ -431,12 +431,15 @@ class JavaFile(ComparableEntity):
         return JavaType(type_name, "", self.project)
 
 
-class JavaProject(ComparableEntity):
+class JavaProject(AbstractProject):
     """Represents whole project that needs to be compared with other projects."""
+
+    def size(self) -> int:
+        return len(self.java_files)
 
     def __init__(self, path: Union[str, pathlib.Path]):
         """Parameter `path` is path to the project's root directory."""
-        super().__init__()
+        super().__init__("Java")
         self.path: pathlib.Path
         if not isinstance(path, pathlib.Path):
             self.path = pathlib.Path(path)
@@ -536,6 +539,8 @@ class JavaProject(ComparableEntity):
             ans.extend(cl.methods)
         return ans
 
-    def compare(self, other: JavaProject) -> Report:
+    def compare(self, other: AbstractProject) -> Optional[Report]:
+        if self.project_type != other.project_type:
+            return
         report = self.compare_parts(other, "java_files")
         return report

@@ -1,6 +1,6 @@
 import ast
 from pathlib import Path
-from typing import List, Union, Set, Type, Dict
+from typing import List, Union, Set
 
 import javalang
 from javalang import tree
@@ -60,7 +60,7 @@ def get_packages(project_dir: Union[str, Path]) -> Set[str]:
     return ans
 
 
-def calculate_score_based_on_numbers(first: int, second:int) -> int:
+def calculate_score_based_on_numbers(first: int, second: int) -> int:
     if first == 0 and second == 0:
         return 100
     return int(100 - 100 * (abs(first - second) / (first + second)))

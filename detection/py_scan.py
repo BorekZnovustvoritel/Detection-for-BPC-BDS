@@ -7,12 +7,15 @@ from functools import cached_property
 
 from detection.thresholds import method_interface_threshold
 import detection.utils as utils
-from detection.abstract_scan import Report, ComparableEntity, AbstractStatementBlock
+from detection.abstract_scan import Report, ComparableEntity, AbstractStatementBlock, AbstractProject
 
 
-class PythonProject(ComparableEntity):
+class PythonProject(AbstractProject):
+    def size(self) -> int:
+        return len(self.python_files)
+
     def __init__(self, path: Union[str, pathlib.Path]):
-        super().__init__()
+        super().__init__("Python")
         self.path: pathlib.Path
         if not isinstance(path, pathlib.Path):
             self.path = pathlib.Path(path)
@@ -23,7 +26,9 @@ class PythonProject(ComparableEntity):
         self.name = self.path.name
         self.python_files: List[PythonFile] = [PythonFile(p, self) for p in utils.get_python_files(self.path)]
 
-    def compare(self, other: PythonProject) -> Report:
+    def compare(self, other: AbstractProject) -> Optional[Report]:
+        if self.project_type != other.project_type:
+            return
         return self.compare_parts(other, "python_files")
 
     def get_module(self, identifier: str) -> Optional[PythonFile]:

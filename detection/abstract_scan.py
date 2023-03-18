@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import pathlib
 from abc import ABC, abstractmethod
 from functools import total_ordering
 from math import sqrt
-from typing import List, Dict, Type, Set
+from typing import List, Dict, Type, Set, Union, Optional
 
 from detection.definitions import thorough_scan, node_translation_dict
 from detection.thresholds import skip_attr_list_threshold
@@ -15,7 +16,7 @@ class Report:
     """Pairwise comparison result. Used as Model from the M-V-C architecture."""
 
     def __init__(
-        self, probability: int, weight: int, first: ComparableEntity, second: ComparableEntity
+            self, probability: int, weight: int, first: ComparableEntity, second: ComparableEntity
     ):
         self.probability: int = probability
         self.weight: int = weight
@@ -51,7 +52,7 @@ class Report:
             self.second,
         )
         if isinstance(self.first, type(other.first)) or isinstance(
-            self.second, type(other.second)
+                self.second, type(other.second)
         ):
             report.child_reports.extend(self.child_reports + other.child_reports)
         else:
@@ -90,12 +91,12 @@ class ComparableEntity(ABC):
             if not self_attr_val or not other_attr_val:
                 return Report(0, 0, self, other)
             if not thorough_scan and (
-                1
-                - sqrt(
-                    abs(len(self_attr_val) - len(other_attr_val))
-                    / (len(self_attr_val) + len(other_attr_val))
-                )
-                < skip_attr_list_threshold
+                    1
+                    - sqrt(
+                abs(len(self_attr_val) - len(other_attr_val))
+                / (len(self_attr_val) + len(other_attr_val))
+            )
+                    < skip_attr_list_threshold
             ):
                 return Report(0, 10, self, other)
             matrix = []
@@ -129,6 +130,17 @@ class ComparableEntity(ABC):
                 f"Cannot compare attribute '{attr}' of instance of '{type(self)}'!"
             )
         return report
+
+
+class AbstractProject(ComparableEntity, ABC):
+    def __init__(self, project_type: str):
+        super().__init__()
+        self.project_type = project_type
+
+    @abstractmethod
+    def size(self) -> int:
+        pass
+
 
 class AbstractStatementBlock(ComparableEntity, ABC):
     def compare(self, other: AbstractStatementBlock) -> Report:
@@ -184,8 +196,8 @@ class AbstractStatementBlock(ComparableEntity, ABC):
         return ans
 
     def _search_for_types(self,
-            statement, block_types: Set[Type]
-    ) -> Dict[Type, List]:
+                          statement, block_types: Set[Type]
+                          ) -> Dict[Type, List]:
         """Go through AST and fetch subtrees rooted in specified node types.
         Parameter `statement` represents AST, `block_types` is set of searched node types.
         Returns dictionary structured as so: `{NodeType1: [subtree1, subtree2, ...], NodeType2: [...]}`"""

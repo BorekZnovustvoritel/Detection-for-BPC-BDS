@@ -1,7 +1,6 @@
 from __future__ import annotations
 from typing import List, Iterable
 
-
 from detection.definitions import print_whole_tree, output_file_name
 from detection.thresholds import print_threshold
 from detection.java_scan import JavaProject, JavaFile, JavaClass, JavaMethod
@@ -9,14 +8,15 @@ from detection.py_scan import PythonProject, PythonFile, PythonClass, PythonFunc
 from detection.abstract_scan import Report, NotFound
 import pandas as pd
 
-types_to_compare = {JavaProject, JavaFile, JavaClass, JavaMethod, PythonProject, PythonFile, PythonClass, PythonFunction}
+types_to_compare = {JavaProject, JavaFile, JavaClass, JavaMethod, PythonProject, PythonFile, PythonClass,
+                    PythonFunction}
 
 
 def print_path(report: Report, indent: int = 0) -> str:
     """Long string output of the comparison result. Works with result from pairwise matching."""
     if (
-        type(report.first) not in types_to_compare
-        or type(report.second) not in types_to_compare
+            type(report.first) not in types_to_compare
+            or type(report.second) not in types_to_compare
     ):
         return ""
     string = (
@@ -30,54 +30,19 @@ def print_path(report: Report, indent: int = 0) -> str:
     return string
 
 
-def create_excel(reports: List[Report], skipped: Iterable[JavaProject], not_handed: Iterable[str], filename: str = output_file_name):
+def create_excel(java_reports: List[Report], python_reports: List[Report], skipped: Iterable[str],
+                 not_handed: Iterable[str], filename: str = output_file_name):
     """Dump all results in xlsx file."""
-    excel_handler = ExcelHandler(filename)
-    dict_of_projects = dict()
-    for report in reports:
-        if report.first.name not in dict_of_projects:
-            dict_of_projects.update(
-                {report.first.name: len(dict_of_projects.keys()) + 1}
-            )
-        if report.second.name not in dict_of_projects:
-            dict_of_projects.update(
-                {report.second.name: len(dict_of_projects.keys()) + 1}
-            )
-        detail_name = f"report-{dict_of_projects[report.first.name]}-{dict_of_projects[report.second.name]}"
-        excel_handler.heatmap_sheet.write_url(
-            dict_of_projects[report.first.name],
-            dict_of_projects[report.second.name],
-            f"internal:'{detail_name}'!A1:B2",
-            string=f"{report.probability}",
-            cell_format=excel_handler.get_format(report.probability),
-        )
-        excel_handler.heatmap_sheet.write_url(
-            dict_of_projects[report.second.name],
-            dict_of_projects[report.first.name],
-            f"internal:'{detail_name}'!A1:B2",
-            string=f"{report.probability}",
-            cell_format=excel_handler.get_format(report.probability),
-        )
-        excel_handler.create_detail_sheet(report, detail_name)
-    for project_name in dict_of_projects:
-        best_match = max(filter(lambda x: True if x.first.name == project_name or x.second.name == project_name else False, reports))
-        excel_handler.heatmap_sheet.write(dict_of_projects[project_name], len(dict_of_projects.keys()) + 1, best_match.first.name if best_match.first.name != project_name else best_match.second.name)
-    max_name_length = max([len(n) for n in dict_of_projects.keys()])
-    for project_name in dict_of_projects.keys():
-        excel_handler.heatmap_sheet.write(
-            0,
-            dict_of_projects[project_name],
-            project_name,
-            excel_handler.top_label_format,
-        )
-        excel_handler.heatmap_sheet.write(
-            dict_of_projects[project_name], 0, project_name, excel_handler.label_format
-        )
-    excel_handler.heatmap_sheet.set_column(0, 0, max_name_length)
-    excel_handler.heatmap_sheet.set_column(1, len(dict_of_projects.keys()), 5)
-    excel_handler.heatmap_sheet.set_row(0, 6 * max_name_length)
-    excel_handler.heatmap_last_col = len(dict_of_projects.keys()) + 1
-    excel_handler.add_note("Projects not containing Java Files:", [x.name for x in skipped])
+    expected_types = set()
+    if len(java_reports) > 0:
+        expected_types.add("Java")
+    if len(python_reports) > 0:
+        expected_types.add("Python")
+    excel_handler = ExcelHandler(filename, expected_types)
+    excel_handler.add_reports(java_reports, "Java")
+    excel_handler.add_reports(python_reports, "Python")
+
+    excel_handler.add_note("Projects not containing Java Files:", skipped)
     excel_handler.add_note("Project solution not found in groups:", not_handed)
     excel_handler.write()
 
@@ -85,12 +50,15 @@ def create_excel(reports: List[Report], skipped: Iterable[JavaProject], not_hand
 class ExcelHandler:
     """Class for encapsulation of xlsx manipulation."""
 
-    def __init__(self, name: str):
+    def __init__(self, name: str, expected_types: Iterable[str]):
         """Parameter `name` is the file name."""
         self.name = name
         self.writer = pd.ExcelWriter(name, engine="xlsxwriter")
         self.workbook = self.writer.book
-        self.heatmap_sheet = self.workbook.add_worksheet("Heatmap")
+        self.overview_sheet = self.workbook.add_worksheet("Overview")
+        self.heatmap_sheets = dict()
+        for t in expected_types:
+            self.heatmap_sheets.update({t: self.workbook.add_worksheet(f"{t} Heatmap")})
         self.green_format = self.workbook.add_format({"bg_color": "#76FF71"})
         self.yellow_format = self.workbook.add_format({"bg_color": "#E7FF71"})
         self.red_format = self.workbook.add_format({"bg_color": "#FF7171"})
@@ -99,6 +67,57 @@ class ExcelHandler:
         self.label_format = self.workbook.add_format({"bold": True})
         self.heatmap_last_col = 0
         self.note_column = 0
+        self.detail_sheet_no = 0
+
+    def add_reports(self, reports: Iterable[Report], project_type: str):
+        dict_of_projects = dict()
+        for report in reports:
+            if report.first.name not in dict_of_projects:
+                dict_of_projects.update(
+                    {report.first.name: len(dict_of_projects.keys()) + 1}
+                )
+            if report.second.name not in dict_of_projects:
+                dict_of_projects.update(
+                    {report.second.name: len(dict_of_projects.keys()) + 1}
+                )
+            detail_name = f"report-{self.detail_sheet_no}"
+            self.detail_sheet_no += 1
+            self.heatmap_sheets[project_type].write_url(
+                dict_of_projects[report.first.name],
+                dict_of_projects[report.second.name],
+                f"internal:'{detail_name}'!A1:B2",
+                string=f"{report.probability}",
+                cell_format=self.get_format(report.probability),
+            )
+            self.heatmap_sheets[project_type].write_url(
+                dict_of_projects[report.second.name],
+                dict_of_projects[report.first.name],
+                f"internal:'{detail_name}'!A1:B2",
+                string=f"{report.probability}",
+                cell_format=self.get_format(report.probability),
+            )
+            self.create_detail_sheet(report, detail_name)
+        for project_name in dict_of_projects:
+            best_match = max(
+                filter(lambda x: True if x.first.name == project_name or x.second.name == project_name else False,
+                       reports))
+            self.heatmap_sheets[project_type].write(dict_of_projects[project_name],
+                                                    len(dict_of_projects.keys()) + 1,
+                                                    best_match.first.name if best_match.first.name != project_name else best_match.second.name)
+        max_name_length = max([len(n) for n in dict_of_projects.keys()])
+        for project_name in dict_of_projects.keys():
+            self.heatmap_sheets[project_type].write(
+                0,
+                dict_of_projects[project_name],
+                project_name,
+                self.top_label_format,
+            )
+            self.heatmap_sheets[project_type].write(
+                dict_of_projects[project_name], 0, project_name, self.label_format
+            )
+        self.heatmap_sheets[project_type].set_column(0, 0, max_name_length)
+        self.heatmap_sheets[project_type].set_column(1, len(dict_of_projects.keys()), 5)
+        self.heatmap_sheets[project_type].set_row(0, 6 * max_name_length)
 
     def get_format(self, score: int):
         """Helper method to determine color for the calculated value."""
@@ -135,7 +154,7 @@ class ExcelHandler:
                 else:
                     sheet.write(row_idx, col_idx, cell_value)
                 if isinstance(cell_value, str) and column_lengths.get(col_idx, 0) < len(
-                    cell_value
+                        cell_value
                 ):
                     column_lengths.update({col_idx: len(cell_value)})
 
@@ -143,12 +162,12 @@ class ExcelHandler:
             sheet.set_column(col_idx, col_idx, column_lengths[col_idx])
 
     def report_tree_to_list_of_lists(
-        self, report: Report, indent: int = 0
+            self, report: Report, indent: int = 0
     ) -> List[List]:
         """Helper method to create a table from pairwise comparison result."""
         if (not print_whole_tree and report.probability < print_threshold) or (
-            type(report.first) not in types_to_compare
-            and type(report.second) not in types_to_compare
+                type(report.first) not in types_to_compare
+                and type(report.second) not in types_to_compare
         ):
             return []
         list_of_lists = [
@@ -168,10 +187,10 @@ class ExcelHandler:
 
     def add_note(self, note_header: str, note_lines: Iterable[str]):
         row_num_to_write = self.heatmap_last_col + 1
-        self.heatmap_sheet.write(row_num_to_write, self.note_column, note_header, self.label_format)
+        self.overview_sheet.write(row_num_to_write, self.note_column, note_header, self.label_format)
         for line in note_lines:
             row_num_to_write += 1
-            self.heatmap_sheet.write(row_num_to_write, self.note_column, line)
+            self.overview_sheet.write(row_num_to_write, self.note_column, line)
         self.note_column += 1
 
     def write(self):

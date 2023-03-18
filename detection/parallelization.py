@@ -1,6 +1,7 @@
+import multiprocessing
 import multiprocessing as mp
-from detection.java_scan import JavaProject
-from detection.abstract_scan import Report
+from detection.abstract_scan import Report, AbstractProject
+from detection.project_type_decison import create_project
 from typing import List
 from detection.definitions import number_of_unused_cores, project_regex
 import requests
@@ -12,13 +13,33 @@ import re
 from threading import Thread
 
 
-def parallel_compare_projects(projects: List[JavaProject]) -> List[Report]:
+def _generate_comparisons(projects):
+    for idx, project in enumerate(projects[:-1]):
+        for other_project in projects[idx + 1:]:
+            yield project, other_project
+
+
+def _compare_wrapper(first_project, other_project):
+    return first_project.compare(other_project)
+
+
+def parallel_compare_projects(projects: List[AbstractProject]) -> List[Report]:
     """Compare list of project to produce a list of pairwise comparison results."""
     reports = []
-    actual_projects = list(filter(lambda x: True if x.java_files else False, projects))
+    all_projects = dict()
+    for project in projects:
+        if project.project_type not in all_projects.keys():
+            all_projects.update({project.project_type: [project]})
+        elif project.size() > 0:
+            all_projects[project.project_type].append(project)
     with mp.Pool(mp.cpu_count() - number_of_unused_cores) as pool:
-        for index, project in enumerate(actual_projects[:-1]):
-            reports.extend(pool.map(project.compare, actual_projects[index + 1:]))
+        for project_type in all_projects.keys():
+            actual_projects = all_projects[project_type]
+            chunk_size = len(actual_projects) // (multiprocessing.cpu_count() - number_of_unused_cores)
+            if chunk_size == 0:
+                chunk_size = 1
+            iterable_of_tuples = list(_generate_comparisons(actual_projects))
+            reports.extend(pool.starmap(_compare_wrapper, iterable_of_tuples, chunksize=chunk_size))
     return reports
 
 
@@ -86,13 +107,18 @@ def parallel_clone_projects(env_file: pathlib.Path, clone_dir: pathlib.Path) -> 
     return not_found_projects_in
 
 
-def parallel_initialize_projects(projects_dir: pathlib.Path) -> List[JavaProject]:
+def parallel_initialize_projects(projects_dir: pathlib.Path) -> List[AbstractProject]:
     """Loads projects from files to memory, creates a list of `Project` objects.
     Parameter `projects_dir` is the directory from which the projects shall be loaded."""
     if isinstance(projects_dir, str):
         projects_dir = pathlib.Path(projects_dir)
     if not projects_dir.is_dir():
         raise EnvironmentError("Project directory could not be found!")
+    projects_directories = list(projects_dir.iterdir())
+    chunk_size = len(projects_directories) // (mp.cpu_count() - number_of_unused_cores)
+    if chunk_size == 0:
+        chunk_size = 1
     with mp.Pool(mp.cpu_count() - number_of_unused_cores) as pool:
-        projects = pool.map(JavaProject, projects_dir.iterdir())
+        projects = pool.map(create_project, projects_directories, chunksize=chunk_size)
+    projects = [p for p in projects if p]
     return projects
