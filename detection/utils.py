@@ -37,8 +37,8 @@ def get_java_ast(java_file: Union[str, Path]) -> javalang.tree.CompilationUnit:
         lines = "".join(inp_file.readlines())
     try:
         return javalang.parse.parse(lines)
-    except javalang.parser.JavaSyntaxError:
-        print(f"{java_file} contains syntax error")
+    except Exception as e:
+        print(f"Problem encountered while parsing file {java_file}. Problem type: {type(e).__name__}.")
 
 
 def get_python_ast(python_file: Union[str, Path]) -> ast.Module:
@@ -46,8 +46,8 @@ def get_python_ast(python_file: Union[str, Path]) -> ast.Module:
         lines = "".join(inp_file.readlines())
     try:
         return ast.parse(lines)
-    except SyntaxError:
-        print(f"{python_file} contains syntax error")
+    except Exception as e:
+        print(f"Problem encountered while parsing file {python_file}. Problem type: {type(e).__name__}.")
 
 
 def get_packages(project_dir: Union[str, Path]) -> Set[str]:

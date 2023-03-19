@@ -497,6 +497,8 @@ class JavaProject(AbstractProject):
 
     def get_class(self, package: str, class_name: str) -> Optional[JavaClass]:
         """Return `JavaClass` object filtered by package and name."""
+        if package.startswith('$'):
+            package = package[1:]
         found_classes = list(
             filter(lambda x: True if x.name == class_name else False, self.classes)
         )

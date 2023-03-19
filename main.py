@@ -47,7 +47,5 @@ if __name__ == "__main__":
             )
             print(print_path(report))
     empty_projects = [p.name for p in filter(lambda x: True if not determine_type_of_project(x) else False, projects_dir_path.iterdir())]
-    python_reports = list(filter(lambda x: True if x.first.project_type == "Python" else False, reports))
-    java_reports = list(filter(lambda x: True if x.first.project_type == "Java" else False, reports))
-    create_excel(java_reports, python_reports, empty_projects, not_founds)
+    create_excel(reports, empty_projects, not_founds)
     print(f"Creating Excel took {datetime.datetime.now() - after_comparison}.")
