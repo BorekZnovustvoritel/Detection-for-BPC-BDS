@@ -2,7 +2,7 @@ import multiprocessing
 import multiprocessing as mp
 from detection.abstract_scan import Report, AbstractProject
 from detection.project_type_decison import create_project
-from typing import List, Dict
+from typing import List, Dict, Iterable
 from detection.definitions import number_of_unused_cores, project_regex
 import requests
 import pathlib
@@ -116,14 +116,14 @@ def parallel_clone_projects(env_file: pathlib.Path, clone_dir: pathlib.Path) -> 
     return not_found_projects_in
 
 
-def parallel_initialize_projects(projects_dir: pathlib.Path, *, template=False) -> List[AbstractProject]:
+def parallel_initialize_projects(projects_dir: pathlib.Path, *, template=False, skip_names: Iterable[str] = ()) -> List[AbstractProject]:
     """Loads projects from files to memory, creates a list of `Project` objects.
     Parameter `projects_dir` is the directory from which the projects shall be loaded."""
     if isinstance(projects_dir, str):
         projects_dir = pathlib.Path(projects_dir)
     if not projects_dir.is_dir():
         raise EnvironmentError("Project directory could not be found!")
-    arg_list = [(d, template) for d in projects_dir.iterdir()]
+    arg_list = [(d, template) for d in projects_dir.iterdir() if d.name not in skip_names]
     chunk_size = len(arg_list) // (mp.cpu_count() - number_of_unused_cores)
     if chunk_size == 0:
         chunk_size = 1

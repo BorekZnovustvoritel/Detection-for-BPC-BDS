@@ -40,7 +40,8 @@ if __name__ == "__main__":
     after_cloning = datetime.datetime.now()
     projects = parallel_initialize_projects(projects_dir_path)
     if include_templates:
-        projects.extend(parallel_initialize_projects(templates_dir_path, template=True))
+        project_names = set(p.name for p in projects)
+        projects.extend(parallel_initialize_projects(templates_dir_path, template=True, skip_names=project_names))
     after_parsing = datetime.datetime.now()
     print(f"Parsing took {after_parsing - after_cloning}.")
     reports = parallel_compare_projects(projects)
