@@ -74,40 +74,54 @@ class ExcelHandler:
         self._row_no_for_notes = 3
 
     def add_reports(self, reports: Iterable[Report], project_type: str):
-        dict_of_projects = dict()
         heatmap = self.heatmap_sheets[project_type]
-        all_names = set(x.first.name for x in reports)
-        all_names.update(x.second.name for x in reports)
-        all_names = list(all_names)
-        all_names.sort()
-        for idx, name in enumerate(all_names):
+
+        templates = set(r.first.name for r in reports if r.first.is_template)
+        templates.update(r.second.name for r in reports if r.second.is_template)
+        templates = list(templates)
+        templates.sort()
+        no_of_templates = len(templates)
+
+        project_names = set(x.first.name for x in reports if not x.first.is_template)
+        project_names.update(x.second.name for x in reports if not x.second.is_template)
+        project_names = list(project_names)
+        project_names.sort()
+        all_projects = templates + project_names
+        dict_of_projects = dict()
+        for idx, name in enumerate(all_projects):
             dict_of_projects.update({name: idx + 1})
         for report in reports:
             detail_name = f"report-{self.detail_sheet_no}"
             self.detail_sheet_no += 1
-            heatmap.write_url(
-                dict_of_projects[report.first.name],
-                dict_of_projects[report.second.name],
-                f"internal:'{detail_name}'!A1:B2",
-                string=f"{report.probability}",
-                cell_format=self.get_format(report.probability),
-            )
-            heatmap.write_url(
-                dict_of_projects[report.second.name],
-                dict_of_projects[report.first.name],
-                f"internal:'{detail_name}'!A1:B2",
-                string=f"{report.probability}",
-                cell_format=self.get_format(report.probability),
-            )
+            row = dict_of_projects[report.first.name] - no_of_templates
+            if row > 0:
+                heatmap.write_url(
+                    row,
+                    dict_of_projects[report.second.name],
+                    f"internal:'{detail_name}'!A1:B2",
+                    string=f"{report.probability}",
+                    cell_format=self.get_format(report.probability),
+                )
+            row = dict_of_projects[report.second.name] - no_of_templates
+            if row > 0:
+                heatmap.write_url(
+                    row,
+                    dict_of_projects[report.first.name],
+                    f"internal:'{detail_name}'!A1:B2",
+                    string=f"{report.probability}",
+                    cell_format=self.get_format(report.probability),
+                )
             self.create_detail_sheet(report, detail_name)
         max_name_length = max([len(n) for n in dict_of_projects.keys()])
-        for project_name in dict_of_projects:
+        for project_name in project_names:
             best_match = max(
                 filter(lambda x: True if x.first.name == project_name or x.second.name == project_name else False,
                        reports))
-            heatmap.write(dict_of_projects[project_name],
-                          len(dict_of_projects.keys()) + 1,
-                          best_match.first.name if best_match.first.name != project_name else best_match.second.name)
+            row = dict_of_projects[project_name] - no_of_templates
+            if row > 0:
+                heatmap.write(row,
+                              len(dict_of_projects.keys()) + 1,
+                              best_match.first.name if best_match.first.name != project_name else best_match.second.name)
         heatmap.write(0, len(dict_of_projects.keys()) + 1, "Best match:", self.label_format)
         for project_name in dict_of_projects.keys():
             heatmap.write(
@@ -116,9 +130,11 @@ class ExcelHandler:
                 project_name,
                 self.top_label_format,
             )
-            heatmap.write(
-                dict_of_projects[project_name], 0, project_name, self.label_format
-            )
+            row = dict_of_projects[project_name] - no_of_templates
+            if row > 0:
+                heatmap.write(
+                    row, 0, project_name, self.label_format
+                )
         heatmap.set_column(0, 0, max_name_length)
         heatmap.set_column(len(dict_of_projects.keys()) + 1, len(dict_of_projects.keys()) + 1, max_name_length)
         heatmap.set_column(1, len(dict_of_projects.keys()), 5)

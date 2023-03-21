@@ -21,7 +21,7 @@ def determine_type_of_project(project_dir: Union[str, Path]) -> Optional[Type]:
     return file_type_dict[max(answers, key=lambda x: answers[x])]
 
 
-def create_project(directory: Union[str, Path]) -> Optional[AbstractProject]:
+def create_project(directory: Union[str, Path], template: bool) -> Optional[AbstractProject]:
     proj_type = determine_type_of_project(directory)
     if proj_type:
-        return proj_type(directory)
+        return proj_type(directory, template)

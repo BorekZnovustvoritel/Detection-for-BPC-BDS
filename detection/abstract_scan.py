@@ -133,9 +133,10 @@ class ComparableEntity(ABC):
 
 
 class AbstractProject(ComparableEntity, ABC):
-    def __init__(self, project_type: str):
+    def __init__(self, project_type: str, template: bool):
         super().__init__()
         self.project_type = project_type
+        self.is_template = template
 
     @abstractmethod
     def size(self) -> int:

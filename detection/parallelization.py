@@ -2,7 +2,7 @@ import multiprocessing
 import multiprocessing as mp
 from detection.abstract_scan import Report, AbstractProject
 from detection.project_type_decison import create_project
-from typing import List
+from typing import List, Dict
 from detection.definitions import number_of_unused_cores, project_regex
 import requests
 import pathlib
@@ -13,7 +13,10 @@ import re
 from threading import Thread
 
 
-def _generate_comparisons(projects):
+def _generate_comparisons(projects, templates):
+    for template_pr in templates:
+        for project in projects:
+            yield template_pr, project
     for idx, project in enumerate(projects[:-1]):
         for other_project in projects[idx + 1:]:
             yield project, other_project
@@ -23,22 +26,28 @@ def _compare_wrapper(first_project, other_project):
     return first_project.compare(other_project)
 
 
+def _project_list_to_dict(projects: List[AbstractProject]) -> Dict[str, List[AbstractProject]]:
+    projects_by_type = dict()
+    for project in projects:
+        if project.project_type not in projects_by_type.keys():
+            projects_by_type.update({project.project_type: [project]})
+        elif project.size() > 0:
+            projects_by_type[project.project_type].append(project)
+    return projects_by_type
+
+
 def parallel_compare_projects(projects: List[AbstractProject]) -> List[Report]:
     """Compare list of project to produce a list of pairwise comparison results."""
     reports = []
-    all_projects = dict()
-    for project in projects:
-        if project.project_type not in all_projects.keys():
-            all_projects.update({project.project_type: [project]})
-        elif project.size() > 0:
-            all_projects[project.project_type].append(project)
+    projects_by_types = _project_list_to_dict(projects)
     with mp.Pool(mp.cpu_count() - number_of_unused_cores) as pool:
-        for project_type in all_projects.keys():
-            actual_projects = all_projects[project_type]
+        for project_type in projects_by_types.keys():
+            templates = [p for p in projects_by_types[project_type] if p.is_template]
+            actual_projects = [p for p in projects_by_types[project_type] if not p.is_template]
             chunk_size = len(actual_projects) // (multiprocessing.cpu_count() - number_of_unused_cores)
             if chunk_size == 0:
                 chunk_size = 1
-            iterable_of_tuples = list(_generate_comparisons(actual_projects))
+            iterable_of_tuples = list(_generate_comparisons(actual_projects, templates))
             reports.extend(pool.starmap(_compare_wrapper, iterable_of_tuples, chunksize=chunk_size))
     return reports
 
@@ -107,18 +116,18 @@ def parallel_clone_projects(env_file: pathlib.Path, clone_dir: pathlib.Path) -> 
     return not_found_projects_in
 
 
-def parallel_initialize_projects(projects_dir: pathlib.Path) -> List[AbstractProject]:
+def parallel_initialize_projects(projects_dir: pathlib.Path, *, template=False) -> List[AbstractProject]:
     """Loads projects from files to memory, creates a list of `Project` objects.
     Parameter `projects_dir` is the directory from which the projects shall be loaded."""
     if isinstance(projects_dir, str):
         projects_dir = pathlib.Path(projects_dir)
     if not projects_dir.is_dir():
         raise EnvironmentError("Project directory could not be found!")
-    projects_directories = list(projects_dir.iterdir())
-    chunk_size = len(projects_directories) // (mp.cpu_count() - number_of_unused_cores)
+    arg_list = [(d, template) for d in projects_dir.iterdir()]
+    chunk_size = len(arg_list) // (mp.cpu_count() - number_of_unused_cores)
     if chunk_size == 0:
         chunk_size = 1
     with mp.Pool(mp.cpu_count() - number_of_unused_cores) as pool:
-        projects = pool.map(create_project, projects_directories, chunksize=chunk_size)
+        projects = pool.starmap(create_project, arg_list, chunksize=chunk_size)
     projects = [p for p in projects if p]
     return projects

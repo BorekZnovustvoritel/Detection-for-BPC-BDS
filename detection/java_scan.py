@@ -437,9 +437,9 @@ class JavaProject(AbstractProject):
     def size(self) -> int:
         return len(self.java_files)
 
-    def __init__(self, path: Union[str, pathlib.Path]):
+    def __init__(self, path: Union[str, pathlib.Path], template: bool):
         """Parameter `path` is path to the project's root directory."""
-        super().__init__("Java")
+        super().__init__("Java", template)
         self.path: pathlib.Path
         if not isinstance(path, pathlib.Path):
             self.path = pathlib.Path(path)

@@ -14,8 +14,8 @@ class PythonProject(AbstractProject):
     def size(self) -> int:
         return len(self.python_files)
 
-    def __init__(self, path: Union[str, pathlib.Path]):
-        super().__init__("Python")
+    def __init__(self, path: Union[str, pathlib.Path], template: bool):
+        super().__init__("Python", template)
         self.path: pathlib.Path
         if not isinstance(path, pathlib.Path):
             self.path = pathlib.Path(path)
