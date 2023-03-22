@@ -1,5 +1,6 @@
 .env
 /projects/*
+/templates/*
 *.xlsx
 *.xlsx#
 **__pycache__

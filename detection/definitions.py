@@ -29,11 +29,13 @@ node_translation_dict = {
     javalang.tree.SwitchStatementCase: javalang.tree.IfStatement,
 }
 projects_dir = "projects"
+templates_dir = "templates"
 env_file = ".env"
 project_regex = r".*proj.*3"
 number_of_unused_cores = 1
 print_whole_tree = True
 debug = False
-offline = False
+offline = True
 thorough_scan = True
+include_templates = True
 output_file_name = f"bds-similarity-check-{datetime.now().strftime('%Y-%m-%d_%H-%M')}.xlsx"

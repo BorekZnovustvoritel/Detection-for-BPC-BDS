@@ -1,9 +1,10 @@
 import datetime
 import os
 
-from detection.definitions import env_file, projects_dir, debug, offline
+from detection.definitions import env_file, projects_dir, templates_dir, debug, offline, include_templates
 from detection.utils import get_self_project_root
 from detection.compare import print_path, create_excel
+from detection.project_type_decison import determine_type_of_project
 from detection.parallelization import (
     parallel_compare_projects,
     parallel_clone_projects,
@@ -18,6 +19,12 @@ if __name__ == "__main__":
         projects_dir_path = Path(get_self_project_root() / projects_dir)
         if not projects_dir_path.exists():
             os.mkdir(projects_dir_path)
+    if include_templates:
+        templates_dir_path = Path(templates_dir)
+        if not templates_dir_path.exists():
+            templates_dir_dir_path = Path(get_self_project_root() / templates_dir)
+            if not templates_dir_path.exists():
+                os.mkdir(templates_dir_path)
     not_founds = []
     if not offline:
         env_file_path = Path(get_self_project_root() / env_file)
@@ -32,6 +39,9 @@ if __name__ == "__main__":
 
     after_cloning = datetime.datetime.now()
     projects = parallel_initialize_projects(projects_dir_path)
+    if include_templates:
+        project_names = set(p.name for p in projects)
+        projects.extend(parallel_initialize_projects(templates_dir_path, template=True, skip_names=project_names))
     after_parsing = datetime.datetime.now()
     print(f"Parsing took {after_parsing - after_cloning}.")
     reports = parallel_compare_projects(projects)
@@ -45,6 +55,6 @@ if __name__ == "__main__":
                 f"Comparing projects: '{report.first.path}' and '{report.second.path}'"
             )
             print(print_path(report))
-
-    create_excel(reports, list(filter(lambda x: True if not x.java_files else False, projects)), not_founds)
+    empty_projects = [p.name for p in filter(lambda x: True if not determine_type_of_project(x) else False, projects_dir_path.iterdir())]
+    create_excel(reports, empty_projects, not_founds)
     print(f"Creating Excel took {datetime.datetime.now() - after_comparison}.")
