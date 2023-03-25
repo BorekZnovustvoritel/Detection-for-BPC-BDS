@@ -1,7 +1,14 @@
 import datetime
 import os
 
-from detection.definitions import env_file, projects_dir, templates_dir, debug, offline, include_templates
+from detection.definitions import (
+    env_file,
+    projects_dir,
+    templates_dir,
+    debug,
+    offline,
+    include_templates,
+)
 from detection.utils import get_self_project_root
 from detection.compare import print_path, create_excel
 from detection.project_type_decison import determine_type_of_project
@@ -41,7 +48,11 @@ if __name__ == "__main__":
     projects = parallel_initialize_projects(projects_dir_path)
     if include_templates:
         project_names = set(p.name for p in projects)
-        projects.extend(parallel_initialize_projects(templates_dir_path, template=True, skip_names=project_names))
+        projects.extend(
+            parallel_initialize_projects(
+                templates_dir_path, template=True, skip_names=project_names
+            )
+        )
     after_parsing = datetime.datetime.now()
     print(f"Parsing took {after_parsing - after_cloning}.")
     reports = parallel_compare_projects(projects)
@@ -55,6 +66,12 @@ if __name__ == "__main__":
                 f"Comparing projects: '{report.first.path}' and '{report.second.path}'"
             )
             print(print_path(report))
-    empty_projects = [p.name for p in filter(lambda x: True if not determine_type_of_project(x) else False, projects_dir_path.iterdir())]
+    empty_projects = [
+        p.name
+        for p in filter(
+            lambda x: True if not determine_type_of_project(x) else False,
+            projects_dir_path.iterdir(),
+        )
+    ]
     create_excel(reports, empty_projects, not_founds)
     print(f"Creating Excel took {datetime.datetime.now() - after_comparison}.")

@@ -16,7 +16,11 @@ class Report:
     """Pairwise comparison result. Used as Model from the M-V-C architecture."""
 
     def __init__(
-            self, probability: int, weight: int, first: ComparableEntity, second: ComparableEntity
+        self,
+        probability: int,
+        weight: int,
+        first: ComparableEntity,
+        second: ComparableEntity,
     ):
         self.probability: int = probability
         self.weight: int = weight
@@ -52,7 +56,7 @@ class Report:
             self.second,
         )
         if isinstance(self.first, type(other.first)) or isinstance(
-                self.second, type(other.second)
+            self.second, type(other.second)
         ):
             report.child_reports.extend(self.child_reports + other.child_reports)
         else:
@@ -91,12 +95,12 @@ class ComparableEntity(ABC):
             if not self_attr_val or not other_attr_val:
                 return Report(0, 0, self, other)
             if not thorough_scan and (
-                    1
-                    - sqrt(
-                abs(len(self_attr_val) - len(other_attr_val))
-                / (len(self_attr_val) + len(other_attr_val))
-            )
-                    < skip_attr_list_threshold
+                1
+                - sqrt(
+                    abs(len(self_attr_val) - len(other_attr_val))
+                    / (len(self_attr_val) + len(other_attr_val))
+                )
+                < skip_attr_list_threshold
             ):
                 return Report(0, 10, self, other)
             matrix = []
@@ -151,7 +155,9 @@ class AbstractStatementBlock(ComparableEntity, ABC):
             other_occurrences = other.parts.get(node_type, 0)
             if other_occurrences > 0:
                 report += Report(
-                    calculate_score_based_on_numbers(self_occurrences, other_occurrences),
+                    calculate_score_based_on_numbers(
+                        self_occurrences, other_occurrences
+                    ),
                     10,
                     self,
                     other,
@@ -162,7 +168,10 @@ class AbstractStatementBlock(ComparableEntity, ABC):
                     other_occurrences = other.parts.get(backup_node_type, 0)
                     if other_occurrences > 0:
                         report += Report(
-                            calculate_score_based_on_numbers(self_occurrences, other_occurrences) // 2,
+                            calculate_score_based_on_numbers(
+                                self_occurrences, other_occurrences
+                            )
+                            // 2,
                             10,
                             self,
                             other,
@@ -184,7 +193,7 @@ class AbstractStatementBlock(ComparableEntity, ABC):
             ans.update({node_type: ans.get(node_type) + 1})
         else:
             ans.update({node_type: 1})
-        for attribute in [a for a in dir(node) if not a.startswith('_')]:
+        for attribute in [a for a in dir(node) if not a.startswith("_")]:
             child = getattr(node, attribute, None)
             if not isinstance(child, self.realm):
                 continue
@@ -196,9 +205,7 @@ class AbstractStatementBlock(ComparableEntity, ABC):
                     ans.update({key: child_dict[key]})
         return ans
 
-    def _search_for_types(self,
-                          statement, block_types: Set[Type]
-                          ) -> Dict[Type, List]:
+    def _search_for_types(self, statement, block_types: Set[Type]) -> Dict[Type, List]:
         """Go through AST and fetch subtrees rooted in specified node types.
         Parameter `statement` represents AST, `block_types` is set of searched node types.
         Returns dictionary structured as so: `{NodeType1: [subtree1, subtree2, ...], NodeType2: [...]}`"""
@@ -211,9 +218,9 @@ class AbstractStatementBlock(ComparableEntity, ABC):
                 ans.update(
                     {
                         node_type: ans[node_type]
-                                   + [
-                                       statement,
-                                   ]
+                        + [
+                            statement,
+                        ]
                     }
                 )
             else:

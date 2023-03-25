@@ -18,7 +18,7 @@ def _generate_comparisons(projects, templates):
         for project in projects:
             yield template_pr, project
     for idx, project in enumerate(projects[:-1]):
-        for other_project in projects[idx + 1:]:
+        for other_project in projects[idx + 1 :]:
             yield project, other_project
 
 
@@ -26,7 +26,9 @@ def _compare_wrapper(first_project, other_project):
     return first_project.compare(other_project)
 
 
-def _project_list_to_dict(projects: List[AbstractProject]) -> Dict[str, List[AbstractProject]]:
+def _project_list_to_dict(
+    projects: List[AbstractProject],
+) -> Dict[str, List[AbstractProject]]:
     projects_by_type = dict()
     for project in projects:
         if project.project_type not in projects_by_type.keys():
@@ -43,12 +45,18 @@ def parallel_compare_projects(projects: List[AbstractProject]) -> List[Report]:
     with mp.Pool(mp.cpu_count() - number_of_unused_cores) as pool:
         for project_type in projects_by_types.keys():
             templates = [p for p in projects_by_types[project_type] if p.is_template]
-            actual_projects = [p for p in projects_by_types[project_type] if not p.is_template]
-            chunk_size = len(actual_projects) // (multiprocessing.cpu_count() - number_of_unused_cores)
+            actual_projects = [
+                p for p in projects_by_types[project_type] if not p.is_template
+            ]
+            chunk_size = len(actual_projects) // (
+                multiprocessing.cpu_count() - number_of_unused_cores
+            )
             if chunk_size == 0:
                 chunk_size = 1
             iterable_of_tuples = list(_generate_comparisons(actual_projects, templates))
-            reports.extend(pool.starmap(_compare_wrapper, iterable_of_tuples, chunksize=chunk_size))
+            reports.extend(
+                pool.starmap(_compare_wrapper, iterable_of_tuples, chunksize=chunk_size)
+            )
     return reports
 
 
@@ -65,7 +73,9 @@ def _single_clone(token: str, group_json, project_json, projects_dir: pathlib.Pa
         run(["git", "-C", f"{repo_dir.absolute()}", "pull"])
 
 
-def parallel_clone_projects(env_file: pathlib.Path, clone_dir: pathlib.Path) -> List[str]:
+def parallel_clone_projects(
+    env_file: pathlib.Path, clone_dir: pathlib.Path
+) -> List[str]:
     """Clone projects from GitLab group specified in the `.env` file.
     Returns list of groups where no suitable project was found."""
     load_dotenv(env_file)
@@ -86,9 +96,9 @@ def parallel_clone_projects(env_file: pathlib.Path, clone_dir: pathlib.Path) -> 
     not_found_projects_in = []
     page = 1
     subgroups_json = requests.get(
-            f"https://gitlab.com/api/v4/groups/{group_id}/subgroups?page={page}",
-            headers={"PRIVATE-TOKEN": token},
-        ).json()
+        f"https://gitlab.com/api/v4/groups/{group_id}/subgroups?page={page}",
+        headers={"PRIVATE-TOKEN": token},
+    ).json()
     while subgroups_json:
         for group_json in subgroups_json:
             projects_found = 0
@@ -96,7 +106,10 @@ def parallel_clone_projects(env_file: pathlib.Path, clone_dir: pathlib.Path) -> 
                 f"https://gitlab.com/api/v4/groups/{group_json['id']}/projects",
                 headers={"PRIVATE-TOKEN": token},
             ).json():
-                if re.match(project_regex, project_json["name"], flags=re.IGNORECASE) is not None:
+                if (
+                    re.match(project_regex, project_json["name"], flags=re.IGNORECASE)
+                    is not None
+                ):
                     thread = Thread(
                         target=_single_clone,
                         args=(token, group_json, project_json, clone_dir),
@@ -105,7 +118,7 @@ def parallel_clone_projects(env_file: pathlib.Path, clone_dir: pathlib.Path) -> 
                     thread.start()
                     projects_found += 1
             if projects_found != 1:
-                not_found_projects_in.append(group_json['path'])
+                not_found_projects_in.append(group_json["path"])
         page += 1
         subgroups_json = requests.get(
             f"https://gitlab.com/api/v4/groups/{group_id}/subgroups?page={page}",
@@ -116,14 +129,18 @@ def parallel_clone_projects(env_file: pathlib.Path, clone_dir: pathlib.Path) -> 
     return not_found_projects_in
 
 
-def parallel_initialize_projects(projects_dir: pathlib.Path, *, template=False, skip_names: Iterable[str] = ()) -> List[AbstractProject]:
+def parallel_initialize_projects(
+    projects_dir: pathlib.Path, *, template=False, skip_names: Iterable[str] = ()
+) -> List[AbstractProject]:
     """Loads projects from files to memory, creates a list of `Project` objects.
     Parameter `projects_dir` is the directory from which the projects shall be loaded."""
     if isinstance(projects_dir, str):
         projects_dir = pathlib.Path(projects_dir)
     if not projects_dir.is_dir():
         raise EnvironmentError("Project directory could not be found!")
-    arg_list = [(d, template) for d in projects_dir.iterdir() if d.name not in skip_names]
+    arg_list = [
+        (d, template) for d in projects_dir.iterdir() if d.name not in skip_names
+    ]
     chunk_size = len(arg_list) // (mp.cpu_count() - number_of_unused_cores)
     if chunk_size == 0:
         chunk_size = 1

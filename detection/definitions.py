@@ -38,4 +38,6 @@ debug = False
 offline = True
 thorough_scan = True
 include_templates = True
-output_file_name = f"bds-similarity-check-{datetime.now().strftime('%Y-%m-%d_%H-%M')}.xlsx"
+output_file_name = (
+    f"bds-similarity-check-{datetime.now().strftime('%Y-%m-%d_%H-%M')}.xlsx"
+)

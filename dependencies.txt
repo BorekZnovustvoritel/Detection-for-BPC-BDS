@@ -1,5 +1,4 @@
 javalang
 python-dotenv
 requests
-pandas
 XlsxWriter

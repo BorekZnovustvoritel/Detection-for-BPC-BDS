@@ -8,10 +8,20 @@ import javalang.tree
 from typing import List, Union, Set, Optional, Dict, Type
 import re
 
-from detection.abstract_scan import Report, ComparableEntity, AbstractStatementBlock, AbstractProject
+from detection.abstract_scan import (
+    Report,
+    ComparableEntity,
+    AbstractStatementBlock,
+    AbstractProject,
+)
 from detection.definitions import translation_dict, node_translation_dict
 from detection.thresholds import method_interface_threshold
-from detection.utils import get_java_ast, get_user_project_root, get_packages, get_java_files
+from detection.utils import (
+    get_java_ast,
+    get_user_project_root,
+    get_packages,
+    get_java_files,
+)
 
 
 class JavaModifier(ComparableEntity):
@@ -195,7 +205,7 @@ class JavaStatementBlock(AbstractStatementBlock):
         self.local_variables: List[JavaVariable] = []
         searched_nodes = self._search_for_types(
             statement,
-            {javalang.tree.VariableDeclaration, javalang.tree.MethodInvocation}
+            {javalang.tree.VariableDeclaration, javalang.tree.MethodInvocation},
         )
         for declaration in searched_nodes.get(javalang.tree.VariableDeclaration, []):
             for declarator in declaration.declarators:
@@ -497,7 +507,7 @@ class JavaProject(AbstractProject):
 
     def get_class(self, package: str, class_name: str) -> Optional[JavaClass]:
         """Return `JavaClass` object filtered by package and name."""
-        if package.startswith('$'):
+        if package.startswith("$"):
             package = package[1:]
         found_classes = list(
             filter(lambda x: True if x.name == class_name else False, self.classes)
@@ -505,7 +515,12 @@ class JavaProject(AbstractProject):
         if len(found_classes) == 1:
             return found_classes[0]
         if len(found_classes) > 1:
-            found_classes = list(filter(lambda x: True if x.java_file.package == package else False, found_classes))
+            found_classes = list(
+                filter(
+                    lambda x: True if x.java_file.package == package else False,
+                    found_classes,
+                )
+            )
         if len(found_classes) == 1:
             return found_classes[0]
         print(f"Project.get_class: Cannot find {package}.{class_name} in {self.name}!")
