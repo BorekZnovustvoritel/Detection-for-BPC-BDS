@@ -3,7 +3,12 @@ import multiprocessing as mp
 from detection.abstract_scan import Report, AbstractProject
 from detection.project_type_decison import create_project
 from typing import List, Dict, Iterable
-from detection.definitions import number_of_unused_cores, project_regex
+from detection.definitions import (
+    number_of_unused_cores,
+    project_regex,
+    templates,
+    templates_dir,
+)
 import requests
 import pathlib
 from dotenv import load_dotenv
@@ -13,8 +18,8 @@ import re
 from threading import Thread
 
 
-def _generate_comparisons(projects, templates):
-    for template_pr in templates:
+def _generate_comparisons(projects, template_projs):
+    for template_pr in template_projs:
         for project in projects:
             yield template_pr, project
     for idx, project in enumerate(projects[:-1]):
@@ -44,7 +49,9 @@ def parallel_compare_projects(projects: List[AbstractProject]) -> List[Report]:
     projects_by_types = _project_list_to_dict(projects)
     with mp.Pool(mp.cpu_count() - number_of_unused_cores) as pool:
         for project_type in projects_by_types.keys():
-            templates = [p for p in projects_by_types[project_type] if p.is_template]
+            template_projs = [
+                p for p in projects_by_types[project_type] if p.is_template
+            ]
             actual_projects = [
                 p for p in projects_by_types[project_type] if not p.is_template
             ]
@@ -53,24 +60,29 @@ def parallel_compare_projects(projects: List[AbstractProject]) -> List[Report]:
             )
             if chunk_size == 0:
                 chunk_size = 1
-            iterable_of_tuples = list(_generate_comparisons(actual_projects, templates))
+            iterable_of_tuples = list(
+                _generate_comparisons(actual_projects, template_projs)
+            )
             reports.extend(
                 pool.starmap(_compare_wrapper, iterable_of_tuples, chunksize=chunk_size)
             )
     return reports
 
 
-def _single_clone(token: str, group_json, project_json, projects_dir: pathlib.Path):
+def _single_clone(dir_name: str, url: str, projects_dir: pathlib.Path):
     """Function used as a target of multiprocessing. Better do not touch this one."""
-    url = f"https://git:{token}@gitlab.com/{project_json['path_with_namespace']}.git"
-    dir_name = f"{group_json['path']}-{project_json['path']}"
+
+    print(f"Cloning: {dir_name}")
     out = run(
         ["git", "-C", f"{projects_dir.absolute()}", "clone", url, dir_name],
         stderr=DEVNULL,
     )
     if out.returncode:
+        print(f"Updating {dir_name}")
         repo_dir = projects_dir / dir_name
-        run(["git", "-C", f"{repo_dir.absolute()}", "pull"])
+        out = run(["git", "-C", f"{repo_dir.absolute()}", "pull"])
+        if out.returncode:
+            print(f"Troubles appeared with project {dir_name}.")
 
 
 def parallel_clone_projects(
@@ -110,9 +122,11 @@ def parallel_clone_projects(
                     re.match(project_regex, project_json["name"], flags=re.IGNORECASE)
                     is not None
                 ):
+                    url = f"https://git:{token}@gitlab.com/{project_json['path_with_namespace']}.git"
+                    dir_name = f"{group_json['path']}-{project_json['path']}"
                     thread = Thread(
                         target=_single_clone,
-                        args=(token, group_json, project_json, clone_dir),
+                        args=(dir_name, url, clone_dir),
                     )
                     threads.append(thread)
                     thread.start()
@@ -124,6 +138,13 @@ def parallel_clone_projects(
             f"https://gitlab.com/api/v4/groups/{group_id}/subgroups?page={page}",
             headers={"PRIVATE-TOKEN": token},
         ).json()
+    for template_name in templates:
+        thread = Thread(
+            target=_single_clone,
+            args=(template_name, templates[template_name], pathlib.Path(templates_dir)),
+        )
+        threads.append(thread)
+        thread.start()
     for thread in threads:
         thread.join()
     return not_found_projects_in

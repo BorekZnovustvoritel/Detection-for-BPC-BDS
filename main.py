@@ -20,7 +20,8 @@ from detection.parallelization import (
 
 from pathlib import Path
 
-if __name__ == "__main__":
+
+def main():
     projects_dir_path = Path(projects_dir)
     if not projects_dir_path.exists():
         projects_dir_path = Path(get_self_project_root() / projects_dir)
@@ -75,3 +76,7 @@ if __name__ == "__main__":
     ]
     create_excel(reports, empty_projects, not_founds)
     print(f"Creating Excel took {datetime.datetime.now() - after_comparison}.")
+
+
+if __name__ == "__main__":
+    main()

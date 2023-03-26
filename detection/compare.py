@@ -59,6 +59,19 @@ def create_excel(
     excel_handler.crete_overview(reports)
     for report_type in report_type_dict.keys():
         excel_handler.add_reports(report_type_dict[report_type], report_type)
+        project_names = set(
+            rep.first.name
+            for rep in report_type_dict[report_type]
+            if not rep.first.is_template
+        )
+        project_names.update(
+            rep.second.name
+            for rep in report_type_dict[report_type]
+            if not rep.first.is_template
+        )
+        project_names = list(project_names)
+        project_names.sort()
+        excel_handler.add_note(f"{report_type} projects:", project_names)
 
     if skipped:
         excel_handler.add_note(
@@ -88,7 +101,7 @@ class ExcelHandler:
         self.label_format = self.workbook.add_format({"bold": True})
         self.note_column = 0
         self.detail_sheet_no = 0
-        self._row_no_for_notes = 3
+        self._row_no_for_notes = 6
         self._formatter = CellFormatter(self.workbook)
 
     def add_reports(self, reports: Iterable[Report], project_type: str):
@@ -232,7 +245,7 @@ class ExcelHandler:
         for row_idx, row in enumerate(table_of_reports):
             is_first = True
             for col_idx, cell_value in enumerate(row):
-                if cell_value is None:
+                if not cell_value:
                     continue
                 if isinstance(cell_value, int):
                     sheet.write(
@@ -265,7 +278,7 @@ class ExcelHandler:
         ):
             return []
         list_of_lists = [
-            [None for _ in range(indent)]
+            ["" for _ in range(indent)]
             + [
                 type(report.first).__name__
                 if not isinstance(report.first, NotFound)
@@ -325,7 +338,8 @@ class ExcelHandler:
         chart.set_x_axis({"name": "Similarity score ranges"})
         chart.set_y_axis({"name": "Number of matches"})
         chart.set_legend({"none": True})
-        self.overview_sheet.insert_chart("M2", chart)
+        self.overview_sheet.set_row_pixels(3, 288)
+        self.overview_sheet.insert_chart("B4", chart)
 
 
 class CellFormatter:

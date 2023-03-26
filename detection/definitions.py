@@ -41,3 +41,6 @@ include_templates = True
 output_file_name = (
     f"bds-similarity-check-{datetime.now().strftime('%Y-%m-%d_%H-%M')}.xlsx"
 )
+templates = {
+    "BDS-JavaFX-Training": "https://gitlab.com/but-courses/bpc-bds/seminar-projects/bds-javafx-training.git"
+}
