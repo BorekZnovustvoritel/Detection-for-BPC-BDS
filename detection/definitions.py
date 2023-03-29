@@ -1,4 +1,5 @@
 import javalang
+import ast
 from javalang import tree
 from datetime import datetime
 
@@ -27,6 +28,7 @@ translation_dict = {
 node_translation_dict = {
     javalang.tree.WhileStatement: javalang.tree.ForStatement,
     javalang.tree.SwitchStatementCase: javalang.tree.IfStatement,
+    ast.AsyncFunctionDef: ast.FunctionDef,
 }
 projects_dir = "projects"
 templates_dir = "templates"
@@ -38,6 +40,7 @@ debug = False
 offline = True
 thorough_scan = True
 include_templates = True
+three_color = False
 output_file_name = (
     f"bds-similarity-check-{datetime.now().strftime('%Y-%m-%d_%H-%M')}.xlsx"
 )

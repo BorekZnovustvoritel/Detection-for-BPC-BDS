@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import List, Iterable, Optional
 
-from detection.definitions import print_whole_tree, output_file_name
+from detection.definitions import print_whole_tree, output_file_name, three_color
 from detection.thresholds import print_threshold
 from detection.java_scan import JavaProject, JavaFile, JavaClass, JavaMethod
 from detection.py_scan import PythonProject, PythonFile, PythonClass, PythonFunction
@@ -245,7 +245,7 @@ class ExcelHandler:
         for row_idx, row in enumerate(table_of_reports):
             is_first = True
             for col_idx, cell_value in enumerate(row):
-                if not cell_value:
+                if not cell_value and not isinstance(cell_value, int):
                     continue
                 if isinstance(cell_value, int):
                     sheet.write(
@@ -346,9 +346,6 @@ class CellFormatter:
     def __init__(self, workbook: xlsxwriter.Workbook):
         self.workbook = workbook
         self.formats = dict()
-        self.green_bg_color = "#76FF71"
-        self.yellow_bg_color = "#E7FF71"
-        self.red_bg_color = "#FF7171"
 
     def get_format(self, score: Optional[int], borders_str: str = ""):
         allowed = {"t", "l", "d", "r"}
@@ -356,12 +353,7 @@ class CellFormatter:
         borders_str.sort()
         bg_color = ""
         if isinstance(score, int):
-            if score <= 70:
-                bg_color = self.green_bg_color
-            elif score <= 85:
-                bg_color = self.yellow_bg_color
-            else:
-                bg_color = self.red_bg_color
+            bg_color = CellFormatter._score_to_color(score)
         key: str = f"{borders_str}|{bg_color}"
         form = self.formats.get(key, None)
         if form:
@@ -379,3 +371,27 @@ class CellFormatter:
             form.set_right()
         self.formats.update({key: form})
         return form
+
+    @staticmethod
+    def _score_to_color(score: int) -> str:
+        if three_color:
+            if score <= 70:
+                return "#76FF71"
+            elif score <= 85:
+                return "#E7FF71"
+            else:
+                return "#FF7171"
+        else:
+            category = score // 50
+            shade_diff = score % 50
+            if category == 0:
+                red_str = hex(int(shade_diff * 255 / 50)).removeprefix("0x").upper()
+                if len(red_str) == 1:
+                    red_str = f"0{red_str}"
+                return f"#{red_str}FF00"
+            elif category == 1:
+                green_string = hex(int((50 - shade_diff) * 255 / 50)).removeprefix("0x").upper()
+                if len(green_string) == 1:
+                    green_string = f"0{green_string}"
+                return f"#FF{green_string}00"
+            return "#FF0000"

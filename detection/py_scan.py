@@ -74,6 +74,7 @@ class PythonFile(ComparableEntity):
     def compare(self, other: ComparableEntity) -> Report:
         report = self.compare_parts(other, "functions")
         report += self.compare_parts(other, "classes")
+        report += self.compare_parts(other, "all_statements")
         return report
 
     def __init__(self, path: Union[str, pathlib.Path], project: PythonProject):
@@ -99,7 +100,7 @@ class PythonFile(ComparableEntity):
         self.classes: List[PythonClass] = [
             PythonClass(a, self) for a in _body if isinstance(a, ast.ClassDef)
         ]
-        self.dicts_to_compare: List[PythonStatementBlock] = [
+        self.statement_blocks: List[PythonStatementBlock] = [
             PythonStatementBlock(t, self)
             for t in _body
             if not (
@@ -115,10 +116,6 @@ class PythonFile(ComparableEntity):
         for cl in self.classes:
             ans.extend(cl.methods)
         return ans
-
-    @cached_property
-    def callables(self):
-        return self.functions + self.methods
 
     def get_function(
         self, function_name: str, qualifier: Optional[str] = None
@@ -153,10 +150,18 @@ class PythonFile(ComparableEntity):
                 return ans[-1]
         return None
 
+    @cached_property
+    def all_statements(self):
+        ans = [s for s in self.statement_blocks]
+        for statement_block in self.statement_blocks:
+            ans.extend(statement_block.statements_from_invocations)
+        return ans
+
 
 class PythonClass(ComparableEntity):
     def compare(self, other: ComparableEntity) -> Report:
         report = self.compare_parts(other, "methods")
+        report += self.compare_parts(other, "statements")
         return report
 
     def __init__(self, python_class: ast.ClassDef, python_file: PythonFile):
@@ -169,7 +174,7 @@ class PythonClass(ComparableEntity):
             for a in _ast.body
             if isinstance(a, ast.AsyncFunctionDef) or isinstance(a, ast.FunctionDef)
         ]
-        self.dicts_to_compare: List[PythonStatementBlock] = [
+        self.statements: List[PythonStatementBlock] = [
             PythonStatementBlock(t, self)
             for t in _ast.body
             if not (
