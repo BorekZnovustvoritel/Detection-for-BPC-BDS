@@ -5,7 +5,7 @@ from functools import cached_property
 
 import javalang
 import javalang.tree
-from typing import List, Union, Set, Optional, Dict, Type
+from typing import List, Union, Set, Optional, Dict
 import re
 
 from detection.abstract_scan import (
@@ -14,7 +14,7 @@ from detection.abstract_scan import (
     AbstractStatementBlock,
     AbstractProject,
 )
-from detection.definitions import translation_dict, node_translation_dict
+from detection.definitions import type_translation_dict
 from detection.thresholds import method_interface_threshold
 from detection.utils import (
     get_java_ast,
@@ -32,7 +32,7 @@ class JavaModifier(ComparableEntity):
         super().__init__()
         self.name: str = name
 
-    def compare(self, other: JavaModifier) -> Report:
+    def compare(self, other: JavaModifier, fast_scan: bool = False) -> Report:
         if self.name == other.name:
             return Report(100, 10, self, other)
         else:
@@ -53,7 +53,7 @@ class JavaType(ComparableEntity):
         if not type_name:
             self.compatible_format = None
             return
-        self.compatible_format: str = translation_dict.get(self.name)
+        self.compatible_format: str = type_translation_dict.get(self.name)
 
     @cached_property
     def is_user_defined(self) -> bool:
@@ -65,7 +65,7 @@ class JavaType(ComparableEntity):
         """Lists basic and externally imported data types that composed user-defined data type."""
         return self.project.user_types.get(self)
 
-    def compare(self, other: JavaType) -> Report:
+    def compare(self, other: JavaType, fast_scan: bool = False) -> Report:
         if not self.name and not other.name:
             return Report(100, 1, self, other)
         if self.is_user_defined != other.is_user_defined:
@@ -83,7 +83,7 @@ class JavaType(ComparableEntity):
             ):
                 return Report(50, 10, self, other)
         else:
-            report = self.compare_parts(other, "non_user_defined_types")
+            report = self.compare_parts(other, "non_user_defined_types", fast_scan)
             return report
         return Report(0, 10, self, other)
 
@@ -122,9 +122,9 @@ class JavaVariable(ComparableEntity):
         """Returns `JavaType` instance."""
         return self.java_file.get_type(self.type_name)
 
-    def compare(self, other: JavaVariable) -> Report:
-        report = self.compare_parts(other, "modifiers")
-        report += self.compare_parts(other, "type")
+    def compare(self, other: JavaVariable, fast_scan: bool = False) -> Report:
+        report = self.compare_parts(other, "modifiers", fast_scan)
+        report += self.compare_parts(other, "type", fast_scan)
         return report
 
 
@@ -249,8 +249,8 @@ class JavaParameter(ComparableEntity):
         """`JavaType` of the parameter."""
         return self.method.java_class.java_file.get_type(self.type_string)
 
-    def compare(self, other: JavaParameter) -> Report:
-        return self.compare_parts(other, "type")
+    def compare(self, other: JavaParameter, fast_scan: bool = False) -> Report:
+        return self.compare_parts(other, "type", fast_scan)
 
 
 class JavaMethod(ComparableEntity):
@@ -295,11 +295,11 @@ class JavaMethod(ComparableEntity):
         """`JavaType` object of the return type."""
         return self.java_class.java_file.get_type(self.return_type_str)
 
-    def compare(self, other: JavaMethod) -> Report:
-        report = self.compare_parts(other, "return_type")
-        report += self.compare_parts(other, "arguments")
-        if report.probability > method_interface_threshold:
-            report += self.compare_parts(other, "all_blocks")
+    def compare(self, other: JavaMethod, fast_scan: bool = False) -> Report:
+        report = self.compare_parts(other, "return_type", fast_scan)
+        report += self.compare_parts(other, "arguments", fast_scan)
+        if (not fast_scan) or report.probability > method_interface_threshold:
+            report += self.compare_parts(other, "all_blocks", fast_scan)
         return report
 
     def get_local_variable(self, var_name: str) -> Optional[JavaVariable]:
@@ -351,10 +351,10 @@ class JavaClass(ComparableEntity):
         for method in self.java_class.methods:
             self.methods.append(JavaMethod(method, self))
 
-    def compare(self, other: JavaClass) -> Report:
-        report = self.compare_parts(other, "modifiers")
-        report += self.compare_parts(other, "variables")
-        report += self.compare_parts(other, "methods")
+    def compare(self, other: JavaClass, fast_scan: bool = False) -> Report:
+        report = self.compare_parts(other, "modifiers", fast_scan)
+        report += self.compare_parts(other, "variables", fast_scan)
+        report += self.compare_parts(other, "methods", fast_scan)
         return report
 
     def get_non_user_defined_types(self) -> List[JavaType]:
@@ -413,8 +413,8 @@ class JavaFile(ComparableEntity):
                 {JavaType(cls.name, self.package, self.project): []}
             )
 
-    def compare(self, other: JavaFile) -> Report:
-        report = self.compare_parts(other, "classes")
+    def compare(self, other: JavaFile, fast_scan: bool = False) -> Report:
+        report = self.compare_parts(other, "classes", fast_scan)
         return report
 
     def get_type(self, type_name: str) -> JavaType:
@@ -556,8 +556,10 @@ class JavaProject(AbstractProject):
             ans.extend(cl.methods)
         return ans
 
-    def compare(self, other: AbstractProject) -> Optional[Report]:
+    def compare(
+        self, other: AbstractProject, fast_scan: bool = False
+    ) -> Optional[Report]:
         if self.project_type != other.project_type:
             return
-        report = self.compare_parts(other, "java_files")
+        report = self.compare_parts(other, "java_files", fast_scan)
         return report

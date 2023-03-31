@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import ast
 import pathlib
-from typing import Union, List, Type, Dict, Optional
+from typing import Union, List, Optional
 from functools import cached_property
 
 from detection.thresholds import method_interface_threshold
@@ -33,10 +33,12 @@ class PythonProject(AbstractProject):
             PythonFile(p, self) for p in utils.get_python_files(self.path)
         ]
 
-    def compare(self, other: AbstractProject) -> Optional[Report]:
+    def compare(
+        self, other: AbstractProject, fast_scan: bool = False
+    ) -> Optional[Report]:
         if self.project_type != other.project_type:
             return
-        return self.compare_parts(other, "python_files")
+        return self.compare_parts(other, "python_files", fast_scan)
 
     def get_module(self, identifier: str) -> Optional[PythonFile]:
         identifier_list = identifier.split(".")
@@ -71,10 +73,10 @@ class PythonProject(AbstractProject):
 
 
 class PythonFile(ComparableEntity):
-    def compare(self, other: ComparableEntity) -> Report:
-        report = self.compare_parts(other, "functions")
-        report += self.compare_parts(other, "classes")
-        report += self.compare_parts(other, "all_statements")
+    def compare(self, other: ComparableEntity, fast_scan: bool = False) -> Report:
+        report = self.compare_parts(other, "functions", fast_scan)
+        report += self.compare_parts(other, "classes", fast_scan)
+        report += self.compare_parts(other, "all_statements", fast_scan)
         return report
 
     def __init__(self, path: Union[str, pathlib.Path], project: PythonProject):
@@ -159,9 +161,9 @@ class PythonFile(ComparableEntity):
 
 
 class PythonClass(ComparableEntity):
-    def compare(self, other: ComparableEntity) -> Report:
-        report = self.compare_parts(other, "methods")
-        report += self.compare_parts(other, "statements")
+    def compare(self, other: ComparableEntity, fast_scan: bool = False) -> Report:
+        report = self.compare_parts(other, "methods", fast_scan)
+        report += self.compare_parts(other, "statements", fast_scan)
         return report
 
     def __init__(self, python_class: ast.ClassDef, python_file: PythonFile):
@@ -186,7 +188,7 @@ class PythonClass(ComparableEntity):
 
 
 class PythonFunction(ComparableEntity):
-    def compare(self, other: PythonFunction) -> Report:
+    def compare(self, other: PythonFunction, fast_scan: bool = False) -> Report:
         report = Report(
             100 if self.has_vararg == other.has_vararg else 0, 5, self, other
         )
@@ -213,7 +215,7 @@ class PythonFunction(ComparableEntity):
         )
         if report.probability < method_interface_threshold:
             return report
-        report += self.compare_parts(other, "all_blocks")
+        report += self.compare_parts(other, "all_blocks", fast_scan)
         return report
 
     def __init__(

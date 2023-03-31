@@ -4,3 +4,5 @@
 *.xlsx
 *.xlsx#
 **__pycache__
+/projects/
+/templates/

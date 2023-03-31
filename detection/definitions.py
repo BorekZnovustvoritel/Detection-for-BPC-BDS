@@ -2,8 +2,9 @@ import javalang
 import ast
 from javalang import tree
 from datetime import datetime
+from multiprocessing import cpu_count
 
-translation_dict = {
+type_translation_dict = {
     "short": "Double",
     "Short": "Double",
     "int": "Double",
@@ -29,21 +30,22 @@ node_translation_dict = {
     javalang.tree.WhileStatement: javalang.tree.ForStatement,
     javalang.tree.SwitchStatementCase: javalang.tree.IfStatement,
     ast.AsyncFunctionDef: ast.FunctionDef,
+    ast.Await: ast.Call,
 }
 projects_dir = "projects"
 templates_dir = "templates"
 env_file = ".env"
 project_regex = r".*proj.*3"
 number_of_unused_cores = 1
-print_whole_tree = True
 debug = False
 offline = True
-thorough_scan = True
+fast_scan = False
+cpu_count = cpu_count() - 1
 include_templates = True
 three_color = False
-output_file_name = (
+default_output_file_name = (
     f"bds-similarity-check-{datetime.now().strftime('%Y-%m-%d_%H-%M')}.xlsx"
 )
 templates = {
-    "BDS-JavaFX-Training": "https://gitlab.com/but-courses/bpc-bds/seminar-projects/bds-javafx-training.git"
+    "https://gitlab.com/but-courses/bpc-bds/seminar-projects/bds-javafx-training.git"
 }

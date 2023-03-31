@@ -1,19 +1,18 @@
 from __future__ import annotations
 
-import pathlib
 from abc import ABC, abstractmethod
 from functools import total_ordering
 from math import sqrt
-from typing import List, Dict, Type, Set, Union, Optional
+from typing import List, Dict, Type, Set
 
-from detection.definitions import thorough_scan, node_translation_dict
+from detection.definitions import node_translation_dict
 from detection.thresholds import skip_attr_list_threshold
 from detection.utils import calculate_score_based_on_numbers
 
 
 @total_ordering
 class Report:
-    """Pairwise comparison result. Used as Model from the M-V-C architecture."""
+    """Pairwise comparison result. Creates a tree of bijective matches."""
 
     def __init__(
         self,
@@ -75,11 +74,13 @@ class ComparableEntity(ABC):
         return f"<{self.__class__.__name__}: {self.__dict__}>"
 
     @abstractmethod
-    def compare(self, other: ComparableEntity) -> Report:
+    def compare(self, other: ComparableEntity, fast_scan: bool = False) -> Report:
         """Compare two objects of the same class inherited from `JavaEntity`. Produces `Report` object."""
         pass
 
-    def compare_parts(self, other: ComparableEntity, attr: str) -> Report:
+    def compare_parts(
+        self, other: ComparableEntity, attr: str, fast_scan: bool = False
+    ) -> Report:
         """Helper method that compares comparable attributes of objects.
         This method is responsible for the hierarchical behavior of comparisons."""
         if not isinstance(other, type(self)):
@@ -94,7 +95,7 @@ class ComparableEntity(ABC):
         if isinstance(self_attr_val, List):
             if not self_attr_val or not other_attr_val:
                 return Report(0, 0, self, other)
-            if not thorough_scan and (
+            if fast_scan and (
                 1
                 - sqrt(
                     abs(len(self_attr_val) - len(other_attr_val))
@@ -108,7 +109,8 @@ class ComparableEntity(ABC):
             other_unused_vals = set(other_attr_val)
             for self_val in self_attr_val:
                 matrix.extend(
-                    self_val.compare(other_val) for other_val in other_attr_val
+                    self_val.compare(other_val, fast_scan)
+                    for other_val in other_attr_val
                 )
             while matrix:
                 max_report = max(matrix)
@@ -128,7 +130,7 @@ class ComparableEntity(ABC):
             for unused in other_unused_vals:
                 report += Report(0, 10, NotFound(), unused)
         elif isinstance(self_attr_val, ComparableEntity):
-            report += self_attr_val.compare(other_attr_val)
+            report += self_attr_val.compare(other_attr_val, fast_scan)
         else:
             raise ValueError(
                 f"Cannot compare attribute '{attr}' of instance of '{type(self)}'!"
@@ -148,7 +150,7 @@ class AbstractProject(ComparableEntity, ABC):
 
 
 class AbstractStatementBlock(ComparableEntity, ABC):
-    def compare(self, other: AbstractStatementBlock) -> Report:
+    def compare(self, other: AbstractStatementBlock, fast_scan: bool = False) -> Report:
         report = Report(0, 0, self, other)
         for node_type in self.parts:
             self_occurrences = self.parts[node_type]
@@ -246,7 +248,7 @@ class AbstractStatementBlock(ComparableEntity, ABC):
 class NotFound(ComparableEntity):
     """Indicate that some part of the projects could not be matched to anything."""
 
-    def compare(self, other: ComparableEntity) -> Report:
+    def compare(self, other: ComparableEntity, fast_scan: bool = False) -> Report:
         return Report(0, 10, self, other)
 
     def __init__(self):

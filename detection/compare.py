@@ -1,10 +1,10 @@
 from __future__ import annotations
 from typing import List, Iterable, Optional
 
-from detection.definitions import print_whole_tree, output_file_name, three_color
+from detection.definitions import default_output_file_name
 from detection.thresholds import print_threshold
-from detection.java_scan import JavaProject, JavaFile, JavaClass, JavaMethod
-from detection.py_scan import PythonProject, PythonFile, PythonClass, PythonFunction
+from detection.java_scan import JavaFile, JavaClass, JavaMethod, JavaProject
+from detection.py_scan import PythonFile, PythonClass, PythonFunction, PythonProject
 from detection.abstract_scan import Report, NotFound, AbstractProject
 import xlsxwriter
 
@@ -42,7 +42,9 @@ def create_excel(
     reports: Iterable[Report],
     skipped: Iterable[str],
     not_handed: Iterable[str],
-    filename: str = output_file_name,
+    *,
+    filename: str = default_output_file_name,
+    three_color: bool = False,
 ):
     """Dump all results in xlsx file."""
     report_type_dict = dict()
@@ -55,7 +57,7 @@ def create_excel(
             report_type_dict.update({report.first.project_type: [report]})
         else:
             report_type_dict[report.first.project_type].append(report)
-    excel_handler = ExcelHandler(filename, report_type_dict.keys())
+    excel_handler = ExcelHandler(filename, report_type_dict.keys(), three_color)
     excel_handler.crete_overview(reports)
     for report_type in report_type_dict.keys():
         excel_handler.add_reports(report_type_dict[report_type], report_type)
@@ -85,7 +87,9 @@ def create_excel(
 class ExcelHandler:
     """Class for encapsulation of xlsx manipulation."""
 
-    def __init__(self, name: str, expected_types: Iterable[str]):
+    def __init__(
+        self, name: str, expected_types: Iterable[str], three_color: bool = False
+    ):
         """Parameter `name` is the file name."""
         self.name = name
         self.workbook = xlsxwriter.Workbook(name)
@@ -102,7 +106,7 @@ class ExcelHandler:
         self.note_column = 0
         self.detail_sheet_no = 0
         self._row_no_for_notes = 6
-        self._formatter = CellFormatter(self.workbook)
+        self._formatter = CellFormatter(self.workbook, three_color)
 
     def add_reports(self, reports: Iterable[Report], project_type: str):
         heatmap = self.heatmap_sheets[project_type]
@@ -272,7 +276,7 @@ class ExcelHandler:
         self, report: Report, indent: int = 0
     ) -> List[List]:
         """Helper method to create a table from pairwise comparison result."""
-        if (not print_whole_tree and report.probability < print_threshold) or (
+        if (
             type(report.first) not in types_to_compare
             and type(report.second) not in types_to_compare
         ):
@@ -343,9 +347,10 @@ class ExcelHandler:
 
 
 class CellFormatter:
-    def __init__(self, workbook: xlsxwriter.Workbook):
+    def __init__(self, workbook: xlsxwriter.Workbook, three_color: bool):
         self.workbook = workbook
         self.formats = dict()
+        self._three_color = three_color
 
     def get_format(self, score: Optional[int], borders_str: str = ""):
         allowed = {"t", "l", "d", "r"}
@@ -353,7 +358,7 @@ class CellFormatter:
         borders_str.sort()
         bg_color = ""
         if isinstance(score, int):
-            bg_color = CellFormatter._score_to_color(score)
+            bg_color = CellFormatter._score_to_color(score, self._three_color)
         key: str = f"{borders_str}|{bg_color}"
         form = self.formats.get(key, None)
         if form:
@@ -373,7 +378,7 @@ class CellFormatter:
         return form
 
     @staticmethod
-    def _score_to_color(score: int) -> str:
+    def _score_to_color(score: int, three_color: bool = False) -> str:
         if three_color:
             if score <= 70:
                 return "#76FF71"
@@ -390,7 +395,9 @@ class CellFormatter:
                     red_str = f"0{red_str}"
                 return f"#{red_str}FF00"
             elif category == 1:
-                green_string = hex(int((50 - shade_diff) * 255 / 50)).removeprefix("0x").upper()
+                green_string = (
+                    hex(int((50 - shade_diff) * 255 / 50)).removeprefix("0x").upper()
+                )
                 if len(green_string) == 1:
                     green_string = f"0{green_string}"
                 return f"#FF{green_string}00"
