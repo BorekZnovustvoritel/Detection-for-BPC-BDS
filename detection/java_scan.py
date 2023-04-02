@@ -262,8 +262,7 @@ class JavaMethod(ComparableEntity):
         """Parameter `java_method` requires appropriate AST subtree,
         `java_class` is reference to the parent `JavaClass` object."""
         super().__init__()
-        self.java_method: javalang.tree.MethodDeclaration = java_method
-        self.name: str = self.java_method.name
+        self.name: str = java_method.name
         self.java_class: JavaClass = java_class
         self.raw_statement_blocks: List[javalang.tree.Node] = java_method.body
         self.statement_blocks: List[JavaStatementBlock] = []
@@ -272,12 +271,12 @@ class JavaMethod(ComparableEntity):
             JavaModifier(m) for m in java_method.modifiers
         ]
         self.arguments: List[JavaParameter] = []
-        for parameter in self.java_method.parameters:
+        for parameter in java_method.parameters:
             argument = JavaParameter(parameter.name, parameter.type.name, self)
             self.arguments.append(argument)
-        if not self.java_method.body:
+        if not java_method.body:
             return
-        for block in self.java_method.body:
+        for block in java_method.body:
             if isinstance(block, javalang.tree.Statement) and len(block.attrs) == 1:
                 return
             self.statement_blocks.append(JavaStatementBlock(block, self))
@@ -334,7 +333,6 @@ class JavaClass(ComparableEntity):
         """Parameter `java_class` requires appropriate AST subtree,
         `java_file` is reference to the parent `JavaFile` object."""
         super().__init__()
-        self.java_class: javalang.tree.ClassDeclaration = java_class
         self.java_file: JavaFile = java_file
         self.name: str = java_class.name
         self.methods: List[JavaMethod] = []
@@ -342,13 +340,13 @@ class JavaClass(ComparableEntity):
         self.modifiers: List[JavaModifier] = [
             JavaModifier(m) for m in java_class.modifiers
         ]
-        for field in self.java_class.fields:
+        for field in java_class.fields:
             for declarator in field.declarators:
                 if isinstance(declarator, javalang.tree.VariableDeclarator):
                     variable = JavaVariable(field, declarator, self.java_file)
                     variable.modifiers = [JavaModifier(m) for m in field.modifiers]
                     self.variables.append(variable)
-        for method in self.java_class.methods:
+        for method in java_class.methods:
             self.methods.append(JavaMethod(method, self))
 
     def compare(self, other: JavaClass, fast_scan: bool = False) -> Report:

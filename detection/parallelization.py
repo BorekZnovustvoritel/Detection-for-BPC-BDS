@@ -51,7 +51,7 @@ def _print_progress(final_num: int):
                 f"\rRemaining time: {(final_num - list_len) * ((datetime.datetime.now() - begin_time) / list_len)}",
                 end="",
             )
-        time.sleep(10)
+        time.sleep(2)
         list_len = queue.qsize()
 
 
