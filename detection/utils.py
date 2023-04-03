@@ -1,4 +1,5 @@
 import ast
+import pathlib
 from pathlib import Path
 from typing import List, Union, Set
 
@@ -74,3 +75,23 @@ def calculate_score_based_on_numbers(first: int, second: int) -> int:
     if first == 0 and second == 0:
         return 100
     return int(100 - 100 * (abs(first - second) / (first + second)))
+
+
+def parse_projects_file(path: Union[pathlib.Path]) -> dict:
+    if not isinstance(path, pathlib.Path):
+        path = pathlib.Path(path)
+    if not path.is_file():
+        raise FileNotFoundError(f"Could not find file {path}.")
+    with open(path, "r") as file:
+        lines = file.readlines()
+    ans = dict()
+    for line in lines:
+        line = line.lstrip()
+        split = list(line.split(' ', maxsplit=1))
+        url = split[0].strip()
+        name = ''
+        if len(split) > 1:
+            name = split[1].strip()
+        if url:
+            ans.update({url: name})
+    return ans

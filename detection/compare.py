@@ -1,7 +1,6 @@
 from __future__ import annotations
 from typing import List, Iterable, Optional
 
-from detection.definitions import default_output_file_name
 from detection.thresholds import print_threshold
 from detection.java_scan import JavaFile, JavaClass, JavaMethod, JavaProject
 from detection.py_scan import PythonFile, PythonClass, PythonFunction, PythonProject
@@ -42,11 +41,13 @@ def create_excel(
     reports: Iterable[Report],
     skipped: Iterable[str],
     not_handed: Iterable[str],
+    filename: str,
     *,
-    filename: str = default_output_file_name,
     three_color: bool = False,
 ):
     """Dump all results in xlsx file."""
+    if not filename:
+        filename = "Out.xlsx"
     report_type_dict = dict()
     for report in reports:
         if not isinstance(report.first, AbstractProject):
@@ -168,13 +169,16 @@ class ExcelHandler:
             row = dict_of_projects[project_name] - no_of_templates
             if row > 0:
                 heatmap.write(row, 0, project_name, self.label_format)
-        heatmap.write(1, no_of_templates + 1, "", self.get_format(None, "lt"))
-        heatmap.write(
-            no_of_projects,
-            no_of_projects + no_of_templates,
-            "",
-            self.get_format(None, "dr"),
-        )
+        if no_of_projects > 1:
+            heatmap.write(1, no_of_templates + 1, "", self.get_format(None, "lt"))
+            heatmap.write(
+                no_of_projects,
+                no_of_projects + no_of_templates,
+                "",
+                self.get_format(None, "dr"),
+            )
+        else:
+            heatmap.write(1, no_of_templates + 1, "", self.get_format(None, "tldr"))
         heatmap.set_column(0, 0, max_name_length)
         heatmap.set_column(
             len(dict_of_projects.keys()) + 1,
@@ -191,11 +195,11 @@ class ExcelHandler:
             borders = ""
             if row == 1:
                 borders += "t"
-            elif row == no_of_projects:
+            if row == no_of_projects:
                 borders += "d"
             if col == 1 or col == no_of_templates + 1:
                 borders += "l"
-            elif col == no_of_templates + no_of_projects:
+            if col == no_of_templates + no_of_projects:
                 borders += "r"
             heatmap.write_url(
                 row,

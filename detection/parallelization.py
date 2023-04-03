@@ -1,17 +1,14 @@
 import datetime, time
 import multiprocessing as mp
-from typing import List, Dict, Iterable
+from typing import List, Dict, Iterable, Union
 import requests
 import pathlib
-from dotenv import load_dotenv
 from subprocess import DEVNULL, run
-import os
 import re
 from threading import Thread
 
 from detection.abstract_scan import Report, AbstractProject
 from detection.project_type_decison import create_project
-
 
 queue = mp.Queue()
 
@@ -21,7 +18,7 @@ def _generate_comparisons(projects, template_projs, fast_scan):
         for project in projects:
             yield template_pr, project, fast_scan
     for idx, project in enumerate(projects[:-1]):
-        for other_project in projects[idx + 1 :]:
+        for other_project in projects[idx + 1:]:
             yield project, other_project, fast_scan
 
 
@@ -31,7 +28,7 @@ def _compare_wrapper(first_project, other_project, fast_scan):
 
 
 def _project_list_to_dict(
-    projects: List[AbstractProject],
+        projects: List[AbstractProject],
 ) -> Dict[str, List[AbstractProject]]:
     projects_by_type = dict()
     for project in projects:
@@ -56,10 +53,10 @@ def _print_progress(final_num: int):
 
 
 def parallel_compare_projects(
-    projects: List[AbstractProject],
-    *,
-    cpu_count: int = mp.cpu_count() - 1,
-    fast_scan: bool,
+        projects: List[AbstractProject],
+        *,
+        cpu_count: int = mp.cpu_count() - 1,
+        fast_scan: bool,
 ) -> List[Report]:
     """Compare list of project to produce a list of pairwise comparison results."""
     reports = []
@@ -110,32 +107,28 @@ def parallel_compare_projects(
 
 def _single_clone(dir_name: str, url: str, projects_dir: pathlib.Path):
     """Function used as a target of multiprocessing. Better do not touch this one."""
-
-    print(f"Cloning: {dir_name}")
-    out = run(
-        ["git", "-C", f"{projects_dir.absolute()}", "clone", url, dir_name],
-        stderr=DEVNULL,
-    )
-    if out.returncode:
+    repo_dir = projects_dir / dir_name
+    if repo_dir.exists():
         print(f"Updating {dir_name}")
-        repo_dir = projects_dir / dir_name
         out = run(["git", "-C", f"{repo_dir.absolute()}", "pull"])
-        if out.returncode:
-            print(f"Troubles appeared with project {dir_name}.")
+    else:
+        print(f"Cloning: {dir_name}")
+        out = run(
+            ["git", "-C", f"{projects_dir.absolute()}", "clone", url, dir_name],
+            stderr=DEVNULL,
+        )
+    if out.returncode:
+        print(f"Troubles appeared while cloning project {dir_name}. Perhaps token is needed in the URL?")
 
 
 def parallel_clone_projects(
-    env_file: pathlib.Path, clone_dir: pathlib.Path, regex_str: str
+        group_id, token, clone_dir: pathlib.Path, regex_str: str
 ) -> List[str]:
     """Clone projects from GitLab group specified in the `.env` file.
     Returns list of groups where no suitable project was found."""
-    load_dotenv(env_file)
 
-    token = os.getenv("TOKEN")
-    group_id = os.getenv("BDS_PROJECTS_SUBGROUP_YEAR_ID")
-
-    if not token or not group_id:
-        raise EnvironmentError(".env file is not set up correctly.")
+    if not group_id:
+        raise EnvironmentError("Group ID must be specified.")
 
     git_return_val = run(["git", "--version"])
     if git_return_val.returncode != 0:
@@ -154,12 +147,12 @@ def parallel_clone_projects(
         for group_json in subgroups_json:
             projects_found = 0
             for project_json in requests.get(
-                f"https://gitlab.com/api/v4/groups/{group_json['id']}/projects",
-                headers={"PRIVATE-TOKEN": token},
+                    f"https://gitlab.com/api/v4/groups/{group_json['id']}/projects",
+                    headers={"PRIVATE-TOKEN": token},
             ).json():
                 if (
-                    re.match(regex_str, project_json["name"], flags=re.IGNORECASE)
-                    is not None
+                        re.match(regex_str, project_json["name"], flags=re.IGNORECASE)
+                        is not None
                 ):
                     url = f"https://git:{token}@gitlab.com/{project_json['path_with_namespace']}.git"
                     dir_name = f"{group_json['path']}-{project_json['path']}"
@@ -182,10 +175,14 @@ def parallel_clone_projects(
     return not_found_projects_in
 
 
-def parallel_clone_templates_from_url(urls: Iterable[str], clone_dir: pathlib.Path):
+def parallel_clone_projects_from_url(urls: Union[Iterable[str], Dict[str, str]], clone_dir: pathlib.Path):
     threads = []
     for url in urls:
-        proj_name = url.rsplit("/", 1)[1].replace(".git", "")
+        proj_name = ''
+        if isinstance(urls, dict):
+            proj_name = urls[url]
+        if not proj_name:
+            proj_name = url.rsplit("/", 1)[1].replace(".git", "")
         thread = Thread(
             target=_single_clone,
             args=(proj_name, url, pathlib.Path(clone_dir)),
@@ -197,11 +194,11 @@ def parallel_clone_templates_from_url(urls: Iterable[str], clone_dir: pathlib.Pa
 
 
 def parallel_initialize_projects(
-    projects_dir: pathlib.Path,
-    *,
-    template=False,
-    skip_names: Iterable[str] = (),
-    cpu_count: int = mp.cpu_count() - 1,
+        projects_dir: pathlib.Path,
+        *,
+        template=False,
+        skip_names: Iterable[str] = (),
+        cpu_count: int = mp.cpu_count() - 1,
 ) -> List[AbstractProject]:
     """Loads projects from files to memory, creates a list of `Project` objects.
     Parameter `projects_dir` is the directory from which the projects shall be loaded."""
