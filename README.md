@@ -32,9 +32,10 @@ This tool is designed for the needs of subject BPC-BDS on FEEC BUT.
 - If you run the application without any flags, all projects matching the pattern will be cloned and compared with each other.
 
 ### Adding templates
-- Create a file, call it for example `tamplates.txt`
+- Create a file, call it for example `templates.txt`
 - For each template you want to add, add the url of the Git repository where the template is stored. After the url, any text is taken as the template's name to be used.
 - Example line would be: `https://gitlab.com/but-courses/bpc-bds/instructors-supporting-tools/bds-similarity-check.git Template Project Similarity Check`
+- Similar example can be found in `sample_projects.txt` and `sample_templates.txt` files.
 - Add as many lines as you need to.
 - Only Git repositories are supported as a source of automatic download.
 - If you don't add any name, the name will fall back to the repository name (`bds-similarity-check`).
@@ -44,6 +45,8 @@ This tool is designed for the needs of subject BPC-BDS on FEEC BUT.
 - Create a file `projects.txt`, fill it in the same way as the templates above.
 - Run with flag `-p projects.txt`
 - Flags can be combined
+- If you want to run similarity test of this code compared to itself, you can use `python3 main.py -t sample_templates.txt -p sample_projects.txt`
+  - In this scenario, the representation might look a bit weird, but the design choice of the comparison view will make sense with more projects.
 
 ### Manual download
 - Check if there are directories `projects` and `templates` created in this directory
