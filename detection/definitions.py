@@ -36,16 +36,7 @@ projects_dir = "projects"
 templates_dir = "templates"
 env_file = ".env"
 project_regex = r".*proj.*3"
-number_of_unused_cores = 1
-debug = False
-offline = True
-fast_scan = False
 cpu_count = cpu_count() - 1
-include_templates = True
-three_color = False
 default_output_file_name = (
     f"bds-similarity-check-{datetime.now().strftime('%Y-%m-%d_%H-%M')}.xlsx"
 )
-templates = {
-    "https://gitlab.com/but-courses/bpc-bds/seminar-projects/bds-javafx-training.git"
-}
