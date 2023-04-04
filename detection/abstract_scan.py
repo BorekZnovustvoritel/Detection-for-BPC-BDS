@@ -57,10 +57,12 @@ class Report:
         if isinstance(self.first, type(other.first)) or isinstance(
             self.second, type(other.second)
         ):
-            report.child_reports.extend(self.child_reports + other.child_reports)
+            report.child_reports.extend(self.child_reports)
+            report.child_reports.extend(other.child_reports)
         else:
             report.child_reports.extend(self.child_reports)
-            report.child_reports.append(other)
+            if other.first.visualise or other.second.visualise:
+                report.child_reports.append(other)
         return report
 
 
@@ -69,6 +71,7 @@ class ComparableEntity(ABC):
 
     def __init__(self):
         self.name: str = ""
+        self.visualise: bool = False
 
     def __repr__(self):
         return f"<{self.__class__.__name__}: {self.__dict__}>"

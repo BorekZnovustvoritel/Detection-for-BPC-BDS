@@ -263,6 +263,7 @@ class JavaMethod(ComparableEntity):
         `java_class` is reference to the parent `JavaClass` object."""
         super().__init__()
         self.name: str = java_method.name
+        self.visualise = True
         self.java_class: JavaClass = java_class
         self.raw_statement_blocks: List[javalang.tree.Node] = java_method.body
         self.statement_blocks: List[JavaStatementBlock] = []
@@ -335,6 +336,7 @@ class JavaClass(ComparableEntity):
         super().__init__()
         self.java_file: JavaFile = java_file
         self.name: str = java_class.name
+        self.visualise = True
         self.methods: List[JavaMethod] = []
         self.variables: List[JavaVariable] = []
         self.modifiers: List[JavaModifier] = [
@@ -392,6 +394,7 @@ class JavaFile(ComparableEntity):
             pathlib.Path(path) if not isinstance(path, pathlib.Path) else path
         )
         self.name: str = self.path.name
+        self.visualise = True
         self.name_without_appendix: str = self.name.replace(".java", "")
         compilation_unit = get_java_ast(path)
         if not compilation_unit:
@@ -456,6 +459,7 @@ class JavaProject(AbstractProject):
         if not self.path.exists():
             raise ValueError(f"Given path does not exist: {path}")
         self.name = self.path.name
+        self.visualise = True
         self.root_path = get_user_project_root(self.path)
         self.packages: Set[str] = get_packages(self.path)
         self.user_types: Dict[JavaType, List[JavaType]] = {}

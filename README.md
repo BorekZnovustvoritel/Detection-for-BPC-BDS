@@ -72,7 +72,7 @@ This tool is designed for the needs of subject BPC-BDS on FEEC BUT.
 - If there is a name collision in the `projects` and in the `templates` directories, the template project with colliding name will be skipped.
 - Java and Python source code compatibility issues may arise. The used AST parser for Java is compatible with Java 8 only, the Python compiler depends on the Python version installed in your PC.
 If any error occurs during parsing, it is logged to STDOUT.
-- This application can take up a lot of memory at runtime. Do try to compare big sets of projects on a low-end device (5.5 GB was allocated during the comparison of 44 projects).
+- This application can take up a lot of memory at runtime. Do try to compare big sets of projects on a low-end device (4.5 GB was allocated during the comparison of 44 projects).
 - This application is a part of a Bachelor's Thesis at the Brno University of technology.
 - The application should be expandable for other languages if a good AST compiler is found.
 - This application is still evolving and some things may change in the future.

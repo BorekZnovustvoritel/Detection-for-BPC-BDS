@@ -29,6 +29,7 @@ class PythonProject(AbstractProject):
         if not self.path.exists():
             raise ValueError(f"Given path does not exist: {path}")
         self.name = self.path.name
+        self.visualise = True
         self.python_files: List[PythonFile] = [
             PythonFile(p, self) for p in utils.get_python_files(self.path)
         ]
@@ -85,6 +86,7 @@ class PythonFile(ComparableEntity):
             path = pathlib.Path(path)
         self.path = path
         self.name = self.path.name
+        self.visualise = True
         self.name_without_appendix = self.name.split(".")[0]
         self.project = project
         self.imports: List[PythonImport] = []
@@ -169,6 +171,7 @@ class PythonClass(ComparableEntity):
     def __init__(self, python_class: ast.ClassDef, python_file: PythonFile):
         super().__init__()
         self.name = python_class.name
+        self.visualise = True
         self.python_file = python_file
         _ast = python_class
         self.methods: List[PythonFunction] = [
@@ -226,6 +229,7 @@ class PythonFunction(ComparableEntity):
     ):
         super().__init__()
         self.name = python_function.name
+        self.visualise = True
         self.python_file: PythonFile = python_file
         self.python_class: Optional[PythonClass] = python_class
         self.parts: List[PythonStatementBlock] = [

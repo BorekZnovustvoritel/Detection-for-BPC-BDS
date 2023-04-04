@@ -2,30 +2,12 @@ from __future__ import annotations
 from typing import List, Iterable, Optional
 
 from detection.thresholds import print_threshold
-from detection.java_scan import JavaFile, JavaClass, JavaMethod, JavaProject
-from detection.py_scan import PythonFile, PythonClass, PythonFunction, PythonProject
 from detection.abstract_scan import Report, NotFound, AbstractProject
 import xlsxwriter
-
-types_to_compare = {
-    JavaProject,
-    JavaFile,
-    JavaClass,
-    JavaMethod,
-    PythonProject,
-    PythonFile,
-    PythonClass,
-    PythonFunction,
-}
 
 
 def print_path(report: Report, indent: int = 0) -> str:
     """Long string output of the comparison result. Works with result from pairwise matching."""
-    if (
-        type(report.first) not in types_to_compare
-        or type(report.second) not in types_to_compare
-    ):
-        return ""
     string = (
         f"{indent * '|     '}\\ Type: {type(report.first).__name__}, "
         f"names: {report.first.name}, {report.second.name}, score: {report.probability}\n"
@@ -280,11 +262,6 @@ class ExcelHandler:
         self, report: Report, indent: int = 0
     ) -> List[List]:
         """Helper method to create a table from pairwise comparison result."""
-        if (
-            type(report.first) not in types_to_compare
-            and type(report.second) not in types_to_compare
-        ):
-            return []
         list_of_lists = [
             ["" for _ in range(indent)]
             + [
