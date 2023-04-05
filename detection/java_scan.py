@@ -19,7 +19,6 @@ from detection.thresholds import method_interface_threshold
 from detection.utils import (
     get_java_ast,
     get_user_project_root,
-    get_packages,
     get_java_files,
 )
 
@@ -461,7 +460,6 @@ class JavaProject(AbstractProject):
         self.name = self.path.name
         self.visualise = True
         self.root_path = get_user_project_root(self.path)
-        self.packages: Set[str] = get_packages(self.path)
         self.user_types: Dict[JavaType, List[JavaType]] = {}
         self.java_files: List[JavaFile] = []
         java_files = get_java_files(self.path)

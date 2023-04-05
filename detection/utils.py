@@ -61,16 +61,6 @@ def get_python_ast(python_file: Union[str, Path]) -> ast.Module:
         )
 
 
-def get_packages(project_dir: Union[str, Path]) -> Set[str]:
-    """Return all packages located in the project."""
-    ans = set()
-    for file in get_java_files(project_dir):
-        compilation_unit = get_java_ast(file)
-        if compilation_unit and compilation_unit.package:
-            ans.add(compilation_unit.package.name)
-    return ans
-
-
 def calculate_score_based_on_numbers(first: int, second: int) -> int:
     if first == 0 and second == 0:
         return 100
