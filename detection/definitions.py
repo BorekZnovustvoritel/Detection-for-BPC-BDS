@@ -31,6 +31,8 @@ node_translation_dict = {
     javalang.tree.SwitchStatementCase: javalang.tree.IfStatement,
     ast.AsyncFunctionDef: ast.FunctionDef,
     ast.Await: ast.Call,
+    ast.NotEq: ast.Eq,
+    ast.Not: ast.Eq,
 }
 projects_dir = "projects"
 templates_dir = "templates"

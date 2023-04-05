@@ -22,7 +22,8 @@ def _generate_comparisons(projects, template_projs, fast_scan):
             yield project, other_project, fast_scan
 
 
-def _compare_wrapper(first_project, other_project, fast_scan):
+def __compare_wrapper(args_tuple):
+    first_project, other_project, fast_scan = args_tuple
     queue.put(1)
     return first_project.compare(other_project, fast_scan)
 
@@ -98,7 +99,7 @@ def parallel_compare_projects(
                 _generate_comparisons(actual_projects, template_projs, fast_scan)
             )
             reports.extend(
-                pool.starmap(_compare_wrapper, iterable_of_tuples, chunksize=chunk_size)
+                pool.imap(__compare_wrapper, iterable_of_tuples, chunksize=chunk_size)
             )
     timer.join()
     print()
@@ -118,7 +119,7 @@ def _single_clone(dir_name: str, url: str, projects_dir: pathlib.Path):
             stderr=DEVNULL,
         )
     if out.returncode:
-        print(f"Troubles appeared while cloning project {dir_name}. Perhaps token is needed in the URL?")
+        print(f"Troubles appeared while cloning project {dir_name}. Perhaps token is needed in the URL? Or rate limiting?")
 
 
 def parallel_clone_projects(

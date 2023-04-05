@@ -129,9 +129,9 @@ class ComparableEntity(ABC):
                 )
                 report += max_report
             for unused in self_unused_vals:
-                report += Report(0, 10, unused, NotFound())
+                report += Report(0, 10, unused, not_found)
             for unused in other_unused_vals:
-                report += Report(0, 10, NotFound(), unused)
+                report += Report(0, 10, not_found, unused)
         elif isinstance(self_attr_val, ComparableEntity):
             report += self_attr_val.compare(other_attr_val, fast_scan)
         else:
@@ -257,3 +257,6 @@ class NotFound(ComparableEntity):
     def __init__(self):
         super().__init__()
         self.name: str = "NOT FOUND"
+
+
+not_found = NotFound()
