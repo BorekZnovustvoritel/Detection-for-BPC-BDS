@@ -155,34 +155,23 @@ class AbstractProject(ComparableEntity, ABC):
 class AbstractStatementBlock(ComparableEntity, ABC):
     def compare(self, other: AbstractStatementBlock, fast_scan: bool = False) -> Report:
         report = Report(0, 0, self, other)
-        for node_type in self.parts:
-            self_occurrences = self.parts[node_type]
+        max_score = 100
+        all_node_types = set(self.parts.keys())
+        all_node_types.update(other.parts.keys())
+        for node_type in all_node_types:
+            fallback_type = node_translation_dict.get(node_type, None)
+            self_occurrences = self.parts.get(node_type, 0)
+            if self_occurrences == 0:
+                max_score -= 25
+                self_occurrences = self.parts.get(fallback_type, 0)
             other_occurrences = other.parts.get(node_type, 0)
-            if other_occurrences > 0:
-                report += Report(
-                    calculate_score_based_on_numbers(
-                        self_occurrences, other_occurrences
-                    ),
-                    10,
-                    self,
-                    other,
-                )
-            else:
-                backup_node_type = node_translation_dict.get(node_type, None)
-                if backup_node_type is not None:
-                    other_occurrences = other.parts.get(backup_node_type, 0)
-                    if other_occurrences > 0:
-                        report += Report(
-                            calculate_score_based_on_numbers(
-                                self_occurrences, other_occurrences
-                            )
-                            // 2,
-                            10,
-                            self,
-                            other,
-                        )
-                else:
-                    report += Report(0, 10, self, other)
+            if other_occurrences == 0:
+                max_score -= 25
+                other_occurrences = other.parts.get(fallback_type, 0)
+            report += Report(
+                calculate_score_based_on_numbers(self_occurrences, other_occurrences) * max_score // 100,
+                10, self, other
+            )
         return report
 
     def __init__(self, statement, realm: Type):
@@ -198,7 +187,8 @@ class AbstractStatementBlock(ComparableEntity, ABC):
             ans.update({node_type: ans.get(node_type) + 1})
         else:
             ans.update({node_type: 1})
-        for attribute in [a for a in dir(node) if not a.startswith("_")]:
+        attrs = [a for a in dir(node) if not a.startswith("_")]
+        for attribute in attrs:
             child = getattr(node, attribute, None)
             if not isinstance(child, self.realm):
                 continue

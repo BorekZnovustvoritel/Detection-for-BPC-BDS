@@ -165,7 +165,7 @@ class PythonFile(ComparableEntity):
 class PythonClass(ComparableEntity):
     def compare(self, other: ComparableEntity, fast_scan: bool = False) -> Report:
         report = self.compare_parts(other, "methods", fast_scan)
-        report += self.compare_parts(other, "statements", fast_scan)
+        report += self.compare_parts(other, "all_statements", fast_scan)
         return report
 
     def __init__(self, python_class: ast.ClassDef, python_file: PythonFile):
@@ -173,21 +173,27 @@ class PythonClass(ComparableEntity):
         self.name = python_class.name
         self.visualise = True
         self.python_file = python_file
-        _ast = python_class
         self.methods: List[PythonFunction] = [
             PythonFunction(a, self.python_file, self)
-            for a in _ast.body
+            for a in python_class.body
             if isinstance(a, ast.AsyncFunctionDef) or isinstance(a, ast.FunctionDef)
         ]
         self.statements: List[PythonStatementBlock] = [
             PythonStatementBlock(t, self)
-            for t in _ast.body
+            for t in python_class.body
             if not (
                 isinstance(t, ast.AsyncFunctionDef)
                 or isinstance(t, ast.FunctionDef)
                 or isinstance(t, ast.ClassDef)
             )
         ]
+
+    @cached_property
+    def all_statements(self):
+        ans = [s for s in self.statements]
+        for statement_block in self.statements:
+            ans.extend(statement_block.statements_from_invocations)
+        return ans
 
 
 class PythonFunction(ComparableEntity):
@@ -216,9 +222,8 @@ class PythonFunction(ComparableEntity):
             self,
             other,
         )
-        if report.probability < method_interface_threshold:
-            return report
-        report += self.compare_parts(other, "all_blocks", fast_scan)
+        if (not fast_scan) or report.probability > method_interface_threshold:
+            report += self.compare_parts(other, "all_blocks", fast_scan)
         return report
 
     def __init__(
@@ -263,7 +268,7 @@ class PythonStatementBlock(AbstractStatementBlock):
         statement: ast.stmt,
         parent: Union[PythonFile, PythonClass, PythonFunction],
     ):
-        super().__init__(statement, ast.stmt)
+        super().__init__(statement, ast.AST)
         self.name = "Statement"
         self.invoked_methods: List[PythonFunctionInvocation] = self._search_for_types(
             statement,
