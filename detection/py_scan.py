@@ -33,6 +33,15 @@ class PythonProject(AbstractProject):
         self.python_files: List[PythonFile] = [
             PythonFile(p, self) for p in utils.get_python_files(self.path)
         ]
+        self.__all_statements = []
+        for p_file in self.python_files:
+            self.__all_statements.extend(p_file.all_statements)
+            for func in p_file.functions:
+                self.__all_statements.extend(func.all_blocks)
+            for p_class in p_file.classes:
+                self.__all_statements.extend(p_class.all_statements)
+                for method in p_class.methods:
+                    self.__all_statements.extend(method.all_blocks)
 
     def compare(
         self, other: AbstractProject, fast_scan: bool = False
@@ -54,7 +63,6 @@ class PythonProject(AbstractProject):
         if len(all_found_files) == 1:
             return all_found_files[0]
         elif len(all_found_files) < 1 or len(identifier_list) <= 1:
-            print(f"Python get_module: {identifier} not found!")
             return None
         filtered_files = []
         for f in all_found_files:
@@ -270,12 +278,12 @@ class PythonStatementBlock(AbstractStatementBlock):
     ):
         super().__init__(statement, ast.AST)
         self.name = "Statement"
-        self.invoked_methods: List[PythonFunctionInvocation] = self._search_for_types(
+        self.invoked_methods: List[PythonFunctionInvocation] = [PythonFunctionInvocation(s, self) for s in self._search_for_types(
             statement,
             {
                 ast.Call,
             },
-        ).get(ast.Call, [])
+        ).get(ast.Call, [])]
         self.parent = parent
         self.parent_file = (
             parent.python_file if isinstance(parent, PythonFunction) else parent
@@ -294,12 +302,25 @@ class PythonStatementBlock(AbstractStatementBlock):
 
 class PythonFunctionInvocation:
     def __init__(self, function_invocation: ast.Call, statement: PythonStatementBlock):
-        method = True if isinstance(function_invocation.func, ast.Attribute) else False
         self.statement = statement
-        self.qualifier_str = function_invocation.func.value.id if method else None
-        self.name = (
-            function_invocation.func.attr if method else function_invocation.func.id
-        )
+
+        self.name = ''
+        self.qualifier_str = ''
+        if isinstance(function_invocation.func, ast.Attribute):
+            self.name = function_invocation.func.attr
+            arr = []
+            tmp = function_invocation.func.value
+            while isinstance(tmp, ast.Attribute):
+                arr.insert(0, tmp.attr)
+                tmp = tmp.attr
+            if isinstance(tmp, ast.Name):
+                arr.append(tmp.id)
+            self.qualifier_str = '.'.join(arr)
+            if not self.qualifier_str:
+                self.qualifier_str = '-'
+
+        elif isinstance(function_invocation.func, ast.Name):
+            self.name = function_invocation.func.id
 
     @cached_property
     def function_referenced(self) -> Optional[PythonFunction]:

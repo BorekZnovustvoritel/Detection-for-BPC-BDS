@@ -226,7 +226,7 @@ class AbstractStatementBlock(ComparableEntity, ABC):
                         ]
                     }
                 )
-        for attribute in getattr(statement, "attrs", []):
+        for attribute in filter(lambda x: False if x.startswith('_') else True, dir(statement)):
             child = getattr(statement, attribute, None)
             if isinstance(child, self.realm):
                 dict_to_add = self._search_for_types(child, block_types)

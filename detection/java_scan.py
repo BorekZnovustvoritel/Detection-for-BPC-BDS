@@ -351,8 +351,7 @@ class JavaClass(ComparableEntity):
             self.methods.append(JavaMethod(method, self))
 
     def compare(self, other: JavaClass, fast_scan: bool = False) -> Report:
-        report = self.compare_parts(other, "modifiers", fast_scan)
-        report += self.compare_parts(other, "variables", fast_scan)
+        report = self.compare_parts(other, "variables", fast_scan)
         report += self.compare_parts(other, "methods", fast_scan)
         return report
 
@@ -523,7 +522,7 @@ class JavaProject(AbstractProject):
             )
         if len(found_classes) == 1:
             return found_classes[0]
-        print(f"Project.get_class: Cannot find {package}.{class_name} in {self.name}!")
+        print(f"Java get_class: Cannot find {package}.{class_name} in {self.name}!")
         return None
 
     def get_user_type(self, package: str, class_name: str) -> Optional[JavaType]:
