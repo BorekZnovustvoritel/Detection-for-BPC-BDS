@@ -355,8 +355,10 @@ class JavaClass(ComparableEntity):
         report += self.compare_parts(other, "methods", fast_scan)
         return report
 
-    def get_non_user_defined_types(self) -> List[JavaType]:
+    def get_non_user_defined_types(self, skip: Optional[Set[JavaType]] = None) -> List[JavaType]:
         """Return all class attribute types as list of types not defined by the user."""
+        if skip is None:
+            skip = set()
         ans = []
         for variable in self.variables:
             if not variable.type.is_user_defined:
@@ -364,10 +366,13 @@ class JavaClass(ComparableEntity):
             elif variable.type.name == self.name:
                 continue
             else:
+                if variable.type in skip:
+                    continue
+                skip.add(variable.type)
                 ans.extend(
                     self.java_file.project.get_class(
                         variable.type.package, variable.type.name
-                    ).get_non_user_defined_types()
+                    ).get_non_user_defined_types(skip)
                 )
         return ans
 
