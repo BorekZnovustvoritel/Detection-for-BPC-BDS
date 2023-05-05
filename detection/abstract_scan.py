@@ -142,6 +142,8 @@ class ComparableEntity(ABC):
 
 
 class AbstractProject(ComparableEntity, ABC):
+    """Abstract Project class, all Project classes should inherit from this to keep the same interface."""
+
     def __init__(self, project_type: str, template: bool):
         super().__init__()
         self.project_type = project_type
@@ -149,10 +151,13 @@ class AbstractProject(ComparableEntity, ABC):
 
     @abstractmethod
     def size(self) -> int:
+        """Returns the size of the project."""
         pass
 
 
 class AbstractStatementBlock(ComparableEntity, ABC):
+    """Abstract statement block. Made abstract in order not to repeat code for each project type."""
+
     def compare(self, other: AbstractStatementBlock, fast_scan: bool = False) -> Report:
         report = Report(0, 0, self, other)
         max_score = 100
@@ -169,18 +174,26 @@ class AbstractStatementBlock(ComparableEntity, ABC):
                 max_score -= 25
                 other_occurrences = other.parts.get(fallback_type, 0)
             report += Report(
-                calculate_score_based_on_numbers(self_occurrences, other_occurrences) * max_score // 100,
-                10, self, other
+                calculate_score_based_on_numbers(self_occurrences, other_occurrences)
+                * max_score
+                // 100,
+                10,
+                self,
+                other,
             )
         return report
 
     def __init__(self, statement, realm: Type):
+        """Parameter `statement` requires the AST object,
+        `realm` is a type that the nodes of the AST should be an instance of.
+         (To check which parts of the AST defines node types, is used for navigating in the tree structure.)"""
         super().__init__()
         self.statement = statement
         self.realm = realm
         self.parts: Dict[Type, int] = self._tree_to_dict(statement)
 
     def _tree_to_dict(self, node) -> dict[Type, int]:
+        """Method that transforms the AST node to a dictionary of node types and their counts."""
         ans: Dict[Type, int] = {}
         node_type = type(node)
         if node_type in ans.keys():
@@ -226,7 +239,9 @@ class AbstractStatementBlock(ComparableEntity, ABC):
                         ]
                     }
                 )
-        for attribute in filter(lambda x: False if x.startswith('_') else True, dir(statement)):
+        for attribute in filter(
+            lambda x: False if x.startswith("_") else True, dir(statement)
+        ):
             child = getattr(statement, attribute, None)
             if isinstance(child, self.realm):
                 dict_to_add = self._search_for_types(child, block_types)

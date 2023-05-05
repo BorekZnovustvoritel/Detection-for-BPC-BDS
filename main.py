@@ -43,9 +43,13 @@ def main(args: argparse.Namespace):
         if args.token:
             token = args.token
         if args.group_id:
-            not_founds = parallel_clone_projects(args.group_id, token, projects_dir_path, args.project_name_regex)
+            not_founds = parallel_clone_projects(
+                args.group_id, token, projects_dir_path, args.project_name_regex
+            )
         elif group_id:
-            not_founds = parallel_clone_projects(group_id, token, projects_dir_path, args.project_name_regex)
+            not_founds = parallel_clone_projects(
+                group_id, token, projects_dir_path, args.project_name_regex
+            )
         else:
             print("GitLab cloning not set.")
         if args.projects_file:
@@ -86,7 +90,7 @@ def main(args: argparse.Namespace):
     if args.debug:
         for report in reports:
             print(
-                f"Comparing projects: '{report.first.path}' and '{report.second.path}'"
+                f"Comparing projects: '{report.first.name}' and '{report.second.name}'"
             )
             print(print_path(report))
     empty_projects = [
@@ -99,39 +103,96 @@ def main(args: argparse.Namespace):
 
     if reports:
         print("Creating Excel...")
-        create_excel(reports, empty_projects, not_founds, args.out, three_color=args.legacy_color)
+        create_excel(
+            reports, empty_projects, not_founds, args.out, three_color=args.legacy_color
+        )
         print(f"Creating Excel took {datetime.datetime.now() - after_comparison}.")
     else:
         print("Nothing was compared.")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Similarity check for Java and Python.")
-    parser.add_argument('-o', '--out', default=default_output_file_name,
-                        help=f"Output xlsx file name. Defaults to '{default_output_file_name}'.")
-    parser.add_argument('-e', '--env', default=default_env,
-                        help='Specify different path to .env file containing GitLab details.')
-    parser.add_argument('-p', '--projects-file',
-                        help="Point to a file containing a list of urls to projects hosted on Git. The format is <url> <name>, one project per row.")
-    parser.add_argument('-t', '--templates-file',
-                        help="Point to a file containing a list of urls to templates hosted on Git. The format is <url> <name>, one project per row.")
-    parser.add_argument('--token', help='GitLab access token for access to GitLab groups.')
-    parser.add_argument('-g', '--group-id', help="GitLab group ID which contains students' subgroups.")
-    parser.add_argument('-off', '--offline', action='store_true', default=False,
-                        help="Force offline mode even if env file is found.")
-    parser.add_argument('--debug', action='store_true', default=False,
-                        help='This will produce a lot of output. Use with caution.')
-    parser.add_argument('-f', '--fast', action='store_true', default=False,
-                        help='Run faster at the cost of lower accuracy. Non-similar projects are affected the most.')
-    parser.add_argument('--cpu', type=int, default=default_cpu_count,
-                        help=f"Number of CPU cores. Defaults to {default_cpu_count} (Number of cores - 1).")
-    parser.add_argument('-pd', '--projects-directory', default=default_projects_dir,
-                        help=f"Specify directory where projects should be cloned and/or processed. Defaults to {default_projects_dir}")
-    parser.add_argument('-td', '--templates-directory', default=default_templates_dir,
-                        help=f"Specify directory where templates should be cloned and/or processed. Defaults to {default_templates_dir}")
-    parser.add_argument('-lc', '--legacy-color', action='store_true', default=False,
-                        help='Make the output only 3 colors. Smoother, but less precise visualisation.')
-    parser.add_argument('-re', '--project-name-regex', default=default_regex,
-                        help=f" Case insensitive regex specifying names to search for on GitLab. Defaults to '{default_regex}'.")
+    parser = argparse.ArgumentParser(
+        description="Similarity check for Java and Python."
+    )
+    parser.add_argument(
+        "-o",
+        "--out",
+        default=default_output_file_name,
+        help=f"Output xlsx file name. Defaults to '{default_output_file_name}'.",
+    )
+    parser.add_argument(
+        "-e",
+        "--env",
+        default=default_env,
+        help="Specify different path to .env file containing GitLab details.",
+    )
+    parser.add_argument(
+        "-p",
+        "--projects-file",
+        help="Point to a file containing a list of urls to projects hosted on Git. The format is <url> <name>, one project per row.",
+    )
+    parser.add_argument(
+        "-t",
+        "--templates-file",
+        help="Point to a file containing a list of urls to templates hosted on Git. The format is <url> <name>, one project per row.",
+    )
+    parser.add_argument(
+        "--token", help="GitLab access token for access to GitLab groups."
+    )
+    parser.add_argument(
+        "-g", "--group-id", help="GitLab group ID which contains students' subgroups."
+    )
+    parser.add_argument(
+        "-off",
+        "--offline",
+        action="store_true",
+        default=False,
+        help="Force offline mode even if env file is found.",
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        default=False,
+        help="This will produce a lot of output. Use with caution.",
+    )
+    parser.add_argument(
+        "-f",
+        "--fast",
+        action="store_true",
+        default=False,
+        help="Run faster at the cost of lower accuracy. Non-similar projects are affected the most.",
+    )
+    parser.add_argument(
+        "--cpu",
+        type=int,
+        default=default_cpu_count,
+        help=f"Number of CPU cores. Defaults to {default_cpu_count} (Number of cores - 1).",
+    )
+    parser.add_argument(
+        "-pd",
+        "--projects-directory",
+        default=default_projects_dir,
+        help=f"Specify directory where projects should be cloned and/or processed. Defaults to {default_projects_dir}",
+    )
+    parser.add_argument(
+        "-td",
+        "--templates-directory",
+        default=default_templates_dir,
+        help=f"Specify directory where templates should be cloned and/or processed. Defaults to {default_templates_dir}",
+    )
+    parser.add_argument(
+        "-lc",
+        "--legacy-color",
+        action="store_true",
+        default=False,
+        help="Make the output only 3 colors. Smoother, but less precise visualisation.",
+    )
+    parser.add_argument(
+        "-re",
+        "--project-name-regex",
+        default=default_regex,
+        help=f" Case insensitive regex specifying names to search for on GitLab. Defaults to '{default_regex}'.",
+    )
 
     main(parser.parse_args())

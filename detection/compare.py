@@ -47,7 +47,7 @@ def create_excel(
         project_names = set(
             rep.first.name
             for rep in report_type_dict[report_type]
-            if not rep.first.is_template
+            if isinstance(rep.first, AbstractProject) and not rep.first.is_template
         )
         project_names.update(
             rep.second.name
@@ -94,14 +94,30 @@ class ExcelHandler:
     def add_reports(self, reports: Iterable[Report], project_type: str):
         heatmap = self.heatmap_sheets[project_type]
 
-        templates = set(r.first.name for r in reports if r.first.is_template)
-        templates.update(r.second.name for r in reports if r.second.is_template)
+        templates = set(
+            r.first.name
+            for r in reports
+            if isinstance(r.first, AbstractProject) and r.first.is_template
+        )
+        templates.update(
+            r.second.name
+            for r in reports
+            if isinstance(r.second, AbstractProject) and r.second.is_template
+        )
         templates = list(templates)
         templates.sort()
         no_of_templates = len(templates)
 
-        project_names = set(x.first.name for x in reports if not x.first.is_template)
-        project_names.update(x.second.name for x in reports if not x.second.is_template)
+        project_names = set(
+            x.first.name
+            for x in reports
+            if isinstance(x.first, AbstractProject) and not x.first.is_template
+        )
+        project_names.update(
+            x.second.name
+            for x in reports
+            if isinstance(x.second, AbstractProject) and not x.second.is_template
+        )
         project_names = list(project_names)
         project_names.sort()
         no_of_projects = len(project_names)

@@ -39,9 +39,15 @@ class JavaModifier(ComparableEntity):
 
 
 class JavaType(ComparableEntity):
-    """Data type of variables or arguments, return type of methods. Can be user-implemented, imported, basic or None."""
+    """Data type of variables or arguments, return type of methods.
+    Can be user-implemented, imported, basic or None."""
 
-    def __init__(self, type_name: str, package: str, project: JavaProject):
+    def __init__(
+        self,
+        type_name: Union[str, None],
+        package: Union[str, None],
+        project: JavaProject,
+    ):
         """Parameter `type_name` is the type identifier represented in source code,
         `package` represents the package where this type was declared
          and `project` keeps track of the parent `Project` object."""
@@ -294,13 +300,6 @@ class JavaMethod(ComparableEntity):
         """`JavaType` object of the return type."""
         return self.java_class.java_file.get_type(self.return_type_str)
 
-    def compare(self, other: JavaMethod, fast_scan: bool = False) -> Report:
-        report = self.compare_parts(other, "return_type", fast_scan)
-        report += self.compare_parts(other, "arguments", fast_scan)
-        if (not fast_scan) or report.probability > method_interface_threshold:
-            report += self.compare_parts(other, "all_blocks", fast_scan)
-        return report
-
     def get_local_variable(self, var_name: str) -> Optional[JavaVariable]:
         """Get local variable by its name."""
         ans = list(
@@ -324,6 +323,13 @@ class JavaMethod(ComparableEntity):
     def all_blocks(self):
         """Statements from own body and from invoked methods."""
         return self.statement_blocks + self.statements_from_invocations
+
+    def compare(self, other: JavaMethod, fast_scan: bool = False) -> Report:
+        report = self.compare_parts(other, "return_type", fast_scan)
+        report += self.compare_parts(other, "arguments", fast_scan)
+        if (not fast_scan) or report.probability > method_interface_threshold:
+            report += self.compare_parts(other, "all_blocks", fast_scan)
+        return report
 
 
 class JavaClass(ComparableEntity):
@@ -350,12 +356,9 @@ class JavaClass(ComparableEntity):
         for method in java_class.methods:
             self.methods.append(JavaMethod(method, self))
 
-    def compare(self, other: JavaClass, fast_scan: bool = False) -> Report:
-        report = self.compare_parts(other, "variables", fast_scan)
-        report += self.compare_parts(other, "methods", fast_scan)
-        return report
-
-    def get_non_user_defined_types(self, skip: Optional[Set[JavaType]] = None) -> List[JavaType]:
+    def get_non_user_defined_types(
+        self, skip: Optional[Set[JavaType]] = None
+    ) -> List[JavaType]:
         """Return all class attribute types as list of types not defined by the user."""
         if skip is None:
             skip = set()
@@ -384,6 +387,11 @@ class JavaClass(ComparableEntity):
         if len(ans) > 0:
             return ans[-1]
         return None
+
+    def compare(self, other: JavaClass, fast_scan: bool = False) -> Report:
+        report = self.compare_parts(other, "variables", fast_scan)
+        report += self.compare_parts(other, "methods", fast_scan)
+        return report
 
 
 class JavaFile(ComparableEntity):
@@ -417,10 +425,6 @@ class JavaFile(ComparableEntity):
                 {JavaType(cls.name, self.package, self.project): []}
             )
 
-    def compare(self, other: JavaFile, fast_scan: bool = False) -> Report:
-        report = self.compare_parts(other, "classes", fast_scan)
-        return report
-
     def get_type(self, type_name: str) -> JavaType:
         """Get `JavaType` object from its string identifier."""
         if not type_name:
@@ -443,6 +447,10 @@ class JavaFile(ComparableEntity):
             if ans is not None:
                 return ans
         return JavaType(type_name, "", self.project)
+
+    def compare(self, other: JavaFile, fast_scan: bool = False) -> Report:
+        report = self.compare_parts(other, "classes", fast_scan)
+        return report
 
 
 class JavaProject(AbstractProject):

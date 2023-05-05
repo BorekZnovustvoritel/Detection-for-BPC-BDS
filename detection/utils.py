@@ -1,7 +1,7 @@
 import ast
 import pathlib
 from pathlib import Path
-from typing import List, Union, Set
+from typing import List, Union
 
 import javalang
 from javalang import tree
@@ -13,17 +13,18 @@ def get_self_project_root() -> Path:
 
 
 def get_java_files(project_dir: Union[str, Path]) -> List[Path]:
-    """Return all files that contain the `.java` extension."""
+    """Return all suitable files that contain the `.java` extension."""
     return [
         f for f in list(project_dir.glob("**/*.java")) if f.name != "module-info.java"
     ]
 
 
 def get_python_files(project_dir: Union[str, Path]) -> List[Path]:
+    """Return all suitable files that contain the `.py` extension."""
     return [
         f
         for f in list(project_dir.glob("**/*.py"))
-        if f.name != "__init__.py" and f.name != "__pycache__"
+        if f.name != "__init__.py" and "__pycache__" not in f.absolute()
     ]
 
 
@@ -51,6 +52,7 @@ def get_java_ast(java_file: Union[str, Path]) -> javalang.tree.CompilationUnit:
 
 
 def get_python_ast(python_file: Union[str, Path]) -> ast.Module:
+    """Return AST of the Python file."""
     with open(python_file, "r") as inp_file:
         lines = "".join(inp_file.readlines())
     try:
@@ -62,12 +64,16 @@ def get_python_ast(python_file: Union[str, Path]) -> ast.Module:
 
 
 def calculate_score_based_on_numbers(first: int, second: int) -> int:
+    """Calculate a pair-wise metric based on number of occurrences of an element.
+    Parameters represent the numbers of occurrences in each parent entity."""
     if first == 0 and second == 0:
         return 100
     return int(100 - 100 * (abs(first - second) / (first + second)))
 
 
 def parse_projects_file(path: Union[pathlib.Path]) -> dict:
+    """Read a file containing the list of projects to clone and compare.
+    Outputs a dictionary containing url to clone from and the name for the project."""
     if not isinstance(path, pathlib.Path):
         path = pathlib.Path(path)
     if not path.is_file():
@@ -77,9 +83,9 @@ def parse_projects_file(path: Union[pathlib.Path]) -> dict:
     ans = dict()
     for line in lines:
         line = line.lstrip()
-        split = list(line.split(' ', maxsplit=1))
+        split = list(line.split(" ", maxsplit=1))
         url = split[0].strip()
-        name = ''
+        name = ""
         if len(split) > 1:
             name = split[1].strip()
         if url:
