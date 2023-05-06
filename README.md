@@ -62,6 +62,7 @@ This tool is designed for the needs of subject BPC-BDS on FEEC BUT.
 - `--token` specifies the token to access GitLab API. This overrides settings from the `.env` file.
 - `-g` specifies the GitLab group ID. This overrides settings from the `.env` file.
 - `--debug` runs the application in debug mode. This is discouraged when comparing more than two projects, otherwise millions of lines of output can be produced.
+- `-w` Adds weight (confidence) of each match to the detailed sheet. The bigger the number, the more elements participated in the match. High-scored parts with a low confidence can expose a false-positive match.
 - `-f` runs the application in fast scan mode. Entities that have too different lengths of attribute lists will be skipped entirely, which can lead to skipping comparisons of entire projects.
 - `--cpu` specifies the number of cores to be used in multiprocessing pools.
 - `-lc` transforms the output to 3-color scale xlsx file. Only Red, Yellow and Green colors are used. The output is less detailed but looks smoother.

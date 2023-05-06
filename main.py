@@ -104,7 +104,12 @@ def main(args: argparse.Namespace):
     if reports:
         print("Creating Excel...")
         create_excel(
-            reports, empty_projects, not_founds, args.out, three_color=args.legacy_color
+            reports,
+            empty_projects,
+            not_founds,
+            args.out,
+            three_color=args.legacy_color,
+            show_weight=args.weight,
         )
         print(f"Creating Excel took {datetime.datetime.now() - after_comparison}.")
     else:
@@ -149,6 +154,13 @@ if __name__ == "__main__":
         action="store_true",
         default=False,
         help="Force offline mode even if env file is found.",
+    )
+    parser.add_argument(
+        "-w",
+        "--weight",
+        action="store_true",
+        default=False,
+        help="Show weight (confidence) of the match in the comparison output detail.",
     )
     parser.add_argument(
         "--debug",

@@ -26,6 +26,7 @@ def create_excel(
     filename: str,
     *,
     three_color: bool = False,
+    show_weight: bool = False,
 ):
     """Dump all results in xlsx file."""
     if not filename:
@@ -43,7 +44,9 @@ def create_excel(
     excel_handler = ExcelHandler(filename, report_type_dict.keys(), three_color)
     excel_handler.crete_overview(reports)
     for report_type in report_type_dict.keys():
-        excel_handler.add_reports(report_type_dict[report_type], report_type)
+        excel_handler.add_reports(
+            report_type_dict[report_type], report_type, show_wight=show_weight
+        )
         project_names = set(
             rep.first.name
             for rep in report_type_dict[report_type]
@@ -91,7 +94,9 @@ class ExcelHandler:
         self._row_no_for_notes = 6
         self._formatter = CellFormatter(self.workbook, three_color)
 
-    def add_reports(self, reports: Iterable[Report], project_type: str):
+    def add_reports(
+        self, reports: Iterable[Report], project_type: str, *, show_wight: bool = False
+    ):
         heatmap = self.heatmap_sheets[project_type]
 
         templates = set(
@@ -134,6 +139,7 @@ class ExcelHandler:
                 dict_of_projects[report.second.name],
                 no_of_templates,
                 no_of_projects,
+                show_weight=show_wight,
             )
         max_name_length = max([len(n) for n in dict_of_projects.keys()])
         for project_name in project_names:
@@ -215,6 +221,8 @@ class ExcelHandler:
         second_idx: int,
         no_of_templates: int,
         no_of_projects: int,
+        *,
+        show_weight: bool = False,
     ):
         detail_name = f"report-{self.detail_sheet_no}"
         self.detail_sheet_no += 1
@@ -236,19 +244,22 @@ class ExcelHandler:
             no_of_templates,
             no_of_projects,
         )
-        self.create_detail_sheet(report, detail_name)
+        self.create_detail_sheet(report, detail_name, show_weight)
 
     def get_format(self, score: Optional[int], borders_str: str = ""):
         """Helper method to determine color for the calculated value."""
         return self._formatter.get_format(score, borders_str)
 
-    def create_detail_sheet(self, report: Report, sheet_name: str):
+    def create_detail_sheet(
+        self, report: Report, sheet_name: str, show_weight: bool = False
+    ):
         """Adds one sheet to the xlsx file. This sheet contains pairwise comparison result."""
         table_of_reports = self.report_tree_to_list_of_lists(report)
         table_width = max([len(row) for row in table_of_reports] + [0])
         sheet = self.workbook.add_worksheet(sheet_name)
         column_lengths = {i: 0 for i in range(table_width - 1)}
         for row_idx, row in enumerate(table_of_reports):
+            row_idx += 1
             is_first = True
             for col_idx, cell_value in enumerate(row):
                 if not cell_value and not isinstance(cell_value, int):
@@ -256,10 +267,12 @@ class ExcelHandler:
                 if isinstance(cell_value, int):
                     sheet.write(
                         row_idx,
-                        table_width - 1,
+                        table_width - 2,
                         cell_value,
                         self.get_format(cell_value),
                     )
+                    if show_weight:
+                        sheet.write(row_idx, table_width - 1, row[col_idx + 1])
                     break
                 if is_first:
                     sheet.write(row_idx, col_idx, cell_value, self.label_format)
@@ -270,7 +283,9 @@ class ExcelHandler:
                     cell_value
                 ):
                     column_lengths.update({col_idx: len(cell_value)})
-
+        sheet.write(0, table_width - 2, "Score", self.label_format)
+        if show_weight:
+            sheet.write(0, table_width - 1, "Weight", self.label_format)
         for col_idx in column_lengths.keys():
             sheet.set_column(col_idx, col_idx, column_lengths[col_idx])
 
@@ -287,6 +302,7 @@ class ExcelHandler:
                 report.first.name,
                 report.second.name,
                 report.probability,
+                report.weight,
             ]
         ]
         for child in report.child_reports:
