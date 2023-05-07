@@ -357,7 +357,7 @@ class PythonProject(AbstractProject):
             filtered_files.append(f)
         if len(filtered_files) == 1:
             return filtered_files[0]
-        print(f"Python get_module: {identifier} not found!")
+        print(f"WARNING: Python get_module: {identifier} not found!")
         return None
 
     def size(self) -> int:

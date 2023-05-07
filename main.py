@@ -34,7 +34,7 @@ def main(args: argparse.Namespace):
 
     not_founds = []
     if not args.offline:
-        print("Cloning from Git repositories...")
+        print("INFO: Cloning from Git repositories...")
         start = datetime.datetime.now()
         load_dotenv(Path(args.env))
 
@@ -51,22 +51,23 @@ def main(args: argparse.Namespace):
                 group_id, token, projects_dir_path, args.project_name_regex
             )
         else:
-            print("GitLab cloning not set.")
+            print("INFO: GitLab cloning not set.")
         if args.projects_file:
             try:
                 projects = parse_projects_file(args.projects_file)
                 parallel_clone_projects_from_url(projects, projects_dir_path)
             except Exception:
-                print(f"Could not read file {args.projects_file}.")
+                print(f"ERROR: Could not read file {args.projects_file}.")
         if args.templates_file:
             try:
                 templates = parse_projects_file(args.templates_file)
                 parallel_clone_projects_from_url(templates, templates_dir_path)
             except Exception:
-                print(f"Could not read file {args.templates_file}.")
-        print(f"Cloning from Git repositories took {datetime.datetime.now() - start}")
+                print(f"ERROR: Could not read file {args.templates_file}.")
+        print(f"INFO: Cloning from Git repositories took {datetime.datetime.now() - start}")
 
     after_cloning = datetime.datetime.now()
+    print("INFO: Loading projects to memory...")
     projects = parallel_initialize_projects(projects_dir_path, cpu_count=args.cpu)
     project_names = set(p.name for p in projects)
     projects.extend(
@@ -78,19 +79,19 @@ def main(args: argparse.Namespace):
         )
     )
     after_parsing = datetime.datetime.now()
-    print(f"Parsing took {after_parsing - after_cloning}.")
-    print("Comparing...")
+    print(f"INFO: Parsing took {after_parsing - after_cloning}.")
+    print("INFO: Comparing...")
     reports = parallel_compare_projects(
         projects, fast_scan=args.fast, cpu_count=args.cpu
     )
     after_comparison = datetime.datetime.now()
-    print(f"Comparing took {after_comparison - after_parsing}.")
-    print(f"Total comparisons: {len(reports)}")
+    print(f"INFO: Comparing took {after_comparison - after_parsing}.")
+    print(f"INFO: Total comparisons: {len(reports)}")
 
     if args.debug:
         for report in reports:
             print(
-                f"Comparing projects: '{report.first.name}' and '{report.second.name}'"
+                f"DEBUG: Comparing projects: '{report.first.name}' and '{report.second.name}'"
             )
             print(print_path(report))
     empty_projects = [
@@ -102,7 +103,7 @@ def main(args: argparse.Namespace):
     ]
 
     if reports:
-        print("Creating Excel...")
+        print("INFO: Creating Excel...")
         create_excel(
             reports,
             empty_projects,
@@ -111,9 +112,9 @@ def main(args: argparse.Namespace):
             three_color=args.legacy_color,
             show_weight=args.weight,
         )
-        print(f"Creating Excel took {datetime.datetime.now() - after_comparison}.")
+        print(f"INFO: Creating Excel took {datetime.datetime.now() - after_comparison}.")
     else:
-        print("Nothing was compared.")
+        print("WARNING: Nothing was compared.")
 
 
 if __name__ == "__main__":

@@ -129,14 +129,14 @@ def _single_clone_or_update(dir_name: str, url: str, projects_dir: pathlib.Path)
     if number_of_tries_to_clone < 1:
         raise ValueError(f"Invalid number of clone tries: {number_of_tries_to_clone}.")
     if repo_dir.exists():
-        print(f"Updating {dir_name}...")
+        print(f"INFO: Updating {dir_name}...")
         for _ in range(number_of_tries_to_clone):
             out = __single_update(repo_dir)
             if not out.returncode:
                 break
             time.sleep(1)
     else:
-        print(f"Cloning: {dir_name}...")
+        print(f"INFO: Cloning: {dir_name}...")
         for _ in range(number_of_tries_to_clone):
             out = __single_clone(dir_name, url, projects_dir)
             if not out.returncode:

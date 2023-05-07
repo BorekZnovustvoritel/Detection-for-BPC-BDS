@@ -535,7 +535,7 @@ class JavaProject(AbstractProject):
             )
         if len(found_classes) == 1:
             return found_classes[0]
-        print(f"Java get_class: Cannot find {package}.{class_name} in {self.name}!")
+        print(f"WARNING: Java get_class: Cannot find {package}.{class_name} in {self.name}!")
         return None
 
     def get_user_type(self, package: str, class_name: str) -> Optional[JavaType]:

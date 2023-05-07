@@ -42,7 +42,7 @@ def get_java_ast(java_file: Union[str, Path]) -> javalang.tree.CompilationUnit:
         return javalang.parse.parse(lines)
     except Exception as e:
         print(
-            f"Problem encountered while parsing file {java_file}. Problem type: {type(e).__name__}."
+            f"ERROR: Problem encountered while parsing file {java_file}. Problem type: {type(e).__name__}."
         )
 
 
@@ -54,7 +54,7 @@ def get_python_ast(python_file: Union[str, Path]) -> ast.Module:
         return ast.parse(lines)
     except Exception as e:
         print(
-            f"Problem encountered while parsing file {python_file}. Problem type: {type(e).__name__}."
+            f"ERROR: Problem encountered while parsing file {python_file}. Problem type: {type(e).__name__}."
         )
 
 
