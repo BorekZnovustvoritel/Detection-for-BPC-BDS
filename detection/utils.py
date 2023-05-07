@@ -7,11 +7,6 @@ import javalang
 from javalang import tree
 
 
-def get_self_project_root() -> Path:
-    """Returns path to the root location where the detection program is located. Needed for configuration purposes."""
-    return Path(__file__).parent.parent
-
-
 def get_java_files(project_dir: Union[str, Path]) -> List[Path]:
     """Return all suitable files that contain the `.java` extension."""
     return [

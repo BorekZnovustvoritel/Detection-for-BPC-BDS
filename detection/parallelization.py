@@ -10,20 +10,18 @@ from threading import Thread
 from detection.abstract_scan import Report, AbstractProject
 from detection.project_type_decison import create_project
 
-queue = mp.Queue()
 
-
-def _generate_comparisons(projects, template_projs, fast_scan):
+def _generate_comparisons(projects, template_projs, fast_scan, queue):
     for template_pr in template_projs:
         for project in projects:
-            yield template_pr, project, fast_scan
+            yield template_pr, project, fast_scan, queue
     for idx, project in enumerate(projects[:-1]):
         for other_project in projects[idx + 1 :]:
-            yield project, other_project, fast_scan
+            yield project, other_project, fast_scan, queue
 
 
 def __compare_wrapper(args_tuple):
-    first_project, other_project, fast_scan = args_tuple
+    first_project, other_project, fast_scan, queue = args_tuple
     queue.put(1)
     return first_project.compare(other_project, fast_scan)
 
@@ -40,7 +38,7 @@ def _project_list_to_dict(
     return projects_by_type
 
 
-def _print_progress(final_num: int):
+def _print_progress(final_num: int, queue: mp.Queue):
     begin_time = datetime.datetime.now()
     list_len = queue.qsize()
     while list_len != final_num:
@@ -82,7 +80,9 @@ def parallel_compare_projects(
         )
         total_comparisons_needed += no_of_projects * no_of_templates
         total_comparisons_needed += (no_of_projects * (no_of_projects - 1)) // 2
-    timer = mp.Process(target=_print_progress, args=(total_comparisons_needed,))
+    manager = mp.Manager()
+    queue = manager.Queue()
+    timer = mp.Process(target=_print_progress, args=(total_comparisons_needed, queue))
     timer.start()
     with mp.Pool(cpu_count) as pool:
         for project_type in projects_by_types.keys():
@@ -96,7 +96,7 @@ def parallel_compare_projects(
             if chunk_size == 0:
                 chunk_size = 1
             iterable_of_tuples = list(
-                _generate_comparisons(actual_projects, template_projs, fast_scan)
+                _generate_comparisons(actual_projects, template_projs, fast_scan, queue)
             )
             reports.extend(
                 pool.imap(__compare_wrapper, iterable_of_tuples, chunksize=chunk_size)
