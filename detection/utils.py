@@ -77,6 +77,8 @@ def parse_projects_file(path: Union[pathlib.Path]) -> dict:
         lines = file.readlines()
     ans = dict()
     for line in lines:
+        if not line:
+            continue
         line = line.lstrip()
         split = list(line.split(" ", maxsplit=1))
         url = split[0].strip()

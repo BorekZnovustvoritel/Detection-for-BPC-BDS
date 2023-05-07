@@ -39,6 +39,7 @@ templates_dir = "templates"
 env_file = ".env"
 project_regex = r".*proj.*3"
 cpu_count = cpu_count() - 1
+number_of_tries_to_clone = 3
 default_output_file_name = (
     f"bds-similarity-check-{datetime.now().strftime('%Y-%m-%d_%H-%M')}.xlsx"
 )

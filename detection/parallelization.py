@@ -3,12 +3,13 @@ import multiprocessing as mp
 from typing import List, Dict, Iterable, Union
 import requests
 import pathlib
-from subprocess import DEVNULL, run
+from subprocess import run, STDOUT
 import re
 from threading import Thread
 
 from detection.abstract_scan import Report, AbstractProject
 from detection.project_type_decison import create_project
+from detection.definitions import number_of_tries_to_clone
 
 
 def _generate_comparisons(projects, template_projs, fast_scan, queue):
@@ -106,21 +107,48 @@ def parallel_compare_projects(
     return reports
 
 
-def _single_clone(dir_name: str, url: str, projects_dir: pathlib.Path):
+def __single_clone(dir_name: str, url: str, projects_dir: pathlib.Path):
+    """Helper function. This is not supposed to be a part of the API."""
+    out = run(
+        ["git", "-C", f"{projects_dir.absolute()}", "clone", url, dir_name],
+        stderr=STDOUT,
+    )
+    return out
+
+
+def __single_update(repo_dir):
+    """Helper function. This is not supposed to be a part of the API."""
+    out = run(["git", "-C", f"{repo_dir.absolute()}", "pull"], stderr=STDOUT)
+    return out
+
+
+def _single_clone_or_update(dir_name: str, url: str, projects_dir: pathlib.Path):
     """Function used as a target of multiprocessing. Better do not touch this one."""
     repo_dir = projects_dir / dir_name
+    out = None
+    if number_of_tries_to_clone < 1:
+        raise ValueError(f"Invalid number of clone tries: {number_of_tries_to_clone}.")
     if repo_dir.exists():
-        print(f"Updating {dir_name}")
-        out = run(["git", "-C", f"{repo_dir.absolute()}", "pull"])
+        print(f"Updating {dir_name}...")
+        for _ in range(number_of_tries_to_clone):
+            out = __single_update(repo_dir)
+            if not out.returncode:
+                break
+            time.sleep(1)
     else:
-        print(f"Cloning: {dir_name}")
-        out = run(
-            ["git", "-C", f"{projects_dir.absolute()}", "clone", url, dir_name],
-            stderr=DEVNULL,
-        )
+        print(f"Cloning: {dir_name}...")
+        for _ in range(number_of_tries_to_clone):
+            out = __single_clone(dir_name, url, projects_dir)
+            if not out.returncode:
+                break
+            time.sleep(1)
     if out.returncode:
         print(
-            f"Troubles appeared while cloning project {dir_name}. Perhaps token is needed in the URL? Or rate limiting?"
+            f"""!!!
+
+ERROR: Troubles appeared while cloning project {dir_name}. Perhaps token is needed in the URL? Or rate limiting?
+
+!!!"""
         )
 
 
@@ -160,7 +188,7 @@ def parallel_clone_projects(
                     url = f"https://git:{token}@gitlab.com/{project_json['path_with_namespace']}.git"
                     dir_name = f"{group_json['path']}-{project_json['path']}"
                     thread = Thread(
-                        target=_single_clone,
+                        target=_single_clone_or_update,
                         args=(dir_name, url, clone_dir),
                     )
                     threads.append(thread)
@@ -189,7 +217,7 @@ def parallel_clone_projects_from_url(
         if not proj_name:
             proj_name = url.rsplit("/", 1)[1].replace(".git", "")
         thread = Thread(
-            target=_single_clone,
+            target=_single_clone_or_update,
             args=(proj_name, url, pathlib.Path(clone_dir)),
         )
         threads.append(thread)
