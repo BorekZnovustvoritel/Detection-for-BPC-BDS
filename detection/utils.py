@@ -24,7 +24,7 @@ def get_python_files(project_dir: Union[str, Path]) -> List[Path]:
     return [
         f
         for f in list(project_dir.glob("**/*.py"))
-        if f.name != "__init__.py" and "__pycache__" not in f.absolute()
+        if f.name != "__init__.py" and "__pycache__" not in str(f.absolute())
     ]
 
 
