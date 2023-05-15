@@ -1,65 +1,82 @@
-# Plagiarism detection tool for FEEC BUT
+# Plagiarism Detection Tool for FEEC BUT
 This tool is designed for the needs of subject BPC-BDS on FEEC BUT.
 
 ## Installation
 
 ### Prerequisites
-- `python3` (Can be checked with `python3 --version`), ideally Python 3.10
-- `pip` (Should be part of `python`, can be checked with `python3 -m pip --version`)
-- `venv` (Should be part of `python`, can be checked with `python3 -m venv --help`)
+- `python3` (Can be checked with `python3 --version`), ideally Python 3.10 or newer. [Here is the download link.](https://www.python.org/downloads/)
+  - **Attention:** `python3` command line utility may be called `py` or `python` on Windows**!**
+- `pip` (Should be part of `python`, can be checked with `python3 -m pip --version`.)
+- `venv` (Should be part of `python`, can be checked with `python3 -m venv --help`.)
 - `git` (Can be checked with `git --version`. On Windows install the [`git cli`](https://git-scm.com/downloads) application.)
 
 ### Setting Things Up
-- `python3 -m venv venv` (`python3` command line utility may be called `py` on Windows)
-- On Linux: `source venv/bin/activate`, on Windows `venv\\Scripts\\activate`
+- `python3 -m venv venv` (Uses package `venv` to create a virtual environment called `venv`.)
+- On Linux: `source venv/bin/activate`, on Windows `.\\venv\\Scripts\\activate`
 - `python3 -m pip install -r dependencies.txt`
-- **Optional:** Fill in the `.env` file to find all necessary projects on GitLab (for online use with GitLab only)
-- **Optional:** Create a file similar to `sample_templates.txt` and fill it in with the requested 
+- **Optional:** Fill in the `.env` file to find all necessary projects on GitLab (for online use with GitLab only).
+- **Optional:** Create a file similar to `sample_templates.txt` and fill it in with the requested .
 
 ## Running the Script
-- On Linux: `source venv/bin/activate`, on Windows `venv\\Scripts\\activate`
+- On Linux: `source venv/bin/activate`, on Windows `.\\venv\\Scripts\\activate`
 - `python3 main.py -h` will print out options to run.
+- See the other instructions and configuration suggestions below.
 
-## Examples of Run Configurations
+## Instructions and Examples of Run Configurations
+
+### Quick Run
+- `python3 main.py -off` (This will create the `projects` and `templates` directories.)
+- Move the previously downloaded projects and templates to the respective directories.
+- `python3 main.py -off` (This will run the comparison.)
 
 ### Using GitLab Configuration (Intended Use in BPC-BDS)
-- Make sure that You have a group (or a subgroup) containing students' subgroups which contain students' projects (displayed in the image below)
+- Make sure that You have a group (or a subgroup) containing students' subgroups which contain students' projects (displayed in the image below).
 
 ![GitLab Group Hierarchy](readme_images/hierarchy.png)
 
-- Check the case-insensitive regex pattern in `detection/definitions.py` for search for students' projects
-- Regex pattern can be also overriden at launch. Use flag `-re 'pattern'` (single quotes are recommended in order not to interpret the string via Bash)
-- Copy the ID of the main group (The correct group in the image would be the Public Group). Paste the ID to be stored in the `.env` file in this variable: `BDS_PROJECTS_SUBGROUP_YEAR_ID`
+- Check the case-insensitive regex pattern in `detection/definitions.py` for search for students' projects.
+- Regex pattern can be also overriden at launch. Use flag `-re 'pattern'` (single quotes are recommended in order not to interpret the string via Bash).
+- Copy the ID of the main group (The correct group in the image would be the Public Group). Paste the ID to be stored in the `.env` file in this variable: `BDS_PROJECTS_SUBGROUP_YEAR_ID`.
 - Copy your GitLab access token if the groups or projects are not public, paste it to `.env`, variable `TOKEN`.
 - If you run the application without any flags, all projects matching the pattern will be cloned and compared with each other.
 
+### Testing Consequent Years for Plagiarism
+- If you still have the old projects downloaded, move them to the `templates` directory.
+- If not:
+  - Copy the `.env` file, name the copy `old.env` or similar.
+  - Fill in the group ID and the token to the `old.env`.
+  - If not, download them automatically using `python3 main.py -co -e old.env -pd templates`.
+  - That command will automatically clone all old projects accessible from the old group using the old token and treat them as templates.
+- Fill in the new group ID and token to the `.env` file.
+- `python3 main.py` will now run the code, clone the new projects and compare them to the old ones.
+
 ### Adding Templates
-- Create a file, call it for example `templates.txt`
+- Create a file, call it for example `templates.txt`.
 - For each template you want to add, add the url of the Git repository where the template is stored. After the url, any text is taken as the template's name to be used.
-- Example line would be: `https://gitlab.com/but-courses/bpc-bds/instructors-supporting-tools/bds-similarity-check.git Template Project Similarity Check`
+- Example line would be: `https://gitlab.com/but-courses/bpc-bds/instructors-supporting-tools/bds-similarity-check.git Template Project Similarity Check`.
 - Similar example can be found in `sample_projects.txt` and `sample_templates.txt` files.
 - Add as many lines as you need to.
 - Only Git repositories are supported as a source of automatic download.
 - If you don't add any name, the name will fall back to the repository name (`bds-similarity-check`).
-- Add the flag `-t templates.txt` when running
+- Add the flag `-t templates.txt` when running.
 
 ### Add Projects Which Are Not Configured in a 2-layer Hierarchy Groups on GitLab
 - Create a file `projects.txt`, fill it in the same way as the templates above.
-- Run with flag `-p projects.txt`
-- Flags can be combined
-- If you want to run similarity test of this code compared to itself, you can use `python3 main.py -t sample_templates.txt -p sample_projects.txt`
+- Run with flag `-p projects.txt`.
+- Flags can be combined (you can specify both `-p` and `-t` in the same run).
+- If you want to run similarity test of this code compared to itself, you can use `python3 main.py -t sample_templates.txt -p sample_projects.txt`.
   - In this scenario, the representation might look a bit weird, but the design choice of the comparison view will make sense with more projects.
 
 ### Manual Download
-- Check if there are directories `projects` and `templates` created in this directory
-- If not, they can be automatically created by running the application with the `offline` flag (`python3 main.py --offline`)
-- Move the projects and templates to their according directories
-- Run with `python3 main.py --offline`
+- Check if there are directories `projects` and `templates` created in this directory.
+- If not, they can be automatically created by running the application with the `offline` flag (`python3 main.py --offline`).
+- Move the projects and templates to their according directories.
+- Run with `python3 main.py --offline`.
 - If you already have the projects and templates downloaded elsewhere, you can point the application to these directories.
-  - Run with `python3 main.py --offline -pd path/to/projects/dir -td path/to/templates/dir`
+  - Run with `python3 main.py --offline -pd path/to/projects/dir -td path/to/templates/dir`.
 
 ### Other Flags Explained
-- `-o` specifies the output xlsx file name. Please include the `.xlsx` extension in the file name
+- `-o` specifies the output xlsx file name. Please include the `.xlsx` extension in the file name.
 - `-e` specifies the path to a different env file. Useful when the .env has been already set for automatic group creation.
 - `--token` specifies the token to access GitLab API. This overrides settings from the `.env` file.
 - `-g` specifies the GitLab group ID. This overrides settings from the `.env` file.
@@ -71,13 +88,13 @@ This tool is designed for the needs of subject BPC-BDS on FEEC BUT.
 
 ### A Few Notes
 - If the `.env` file is filled in, the GitLab groups are checked every time the application is run.
-  - If you do not wish to check the web-based repos at all, use the `--offline` flag
-  - If you want to only clone using the `-t` and `-p` flags but do not want to delete the `.env` file, rename it (use for example `backup.env`, this name is added to `.gitignore`).
+  - If you do not wish to check the GitLab groups, use the `--offline` flag
+  - Cloning using the `-t` and `-p` flags is still possible when using the `--offline` flag.
 - The application does not delete files after cloning. That means you can run the application once, with cloning included and if you want to rerun on the same projects, you can use the `--offline` flag.
 - If the application detects that any directory that is supposed to be a target of cloning exists, it executes the `git pull` command instead. That way projects are updated automatically.
 - If there is a name collision in the `projects` and in the `templates` directories, the template project with colliding name will be skipped.
 - Java and Python source code compatibility issues may arise. The used AST parser for Java is compatible with Java 8 only, the Python compiler depends on the Python version installed in your PC.
-If any error occurs during parsing, it is logged to STDOUT.
+- If any error occurs during parsing, it is logged to STDOUT.
 - This application can take up a lot of memory at runtime. Do try to compare big sets of projects on a low-end device (4.5 GB was allocated during the comparison of 44 projects).
 - This application is a part of a Bachelor's Thesis at the Brno University of technology.
 - The application should be expandable for other languages if a good AST compiler is found.

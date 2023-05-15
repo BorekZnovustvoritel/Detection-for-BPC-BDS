@@ -33,9 +33,9 @@ def main(args: argparse.Namespace):
         os.mkdir(templates_dir_path)
 
     not_founds = []
+    start = datetime.datetime.now()
     if not args.offline:
         print("INFO: Cloning from Git repositories...")
-        start = datetime.datetime.now()
         load_dotenv(Path(args.env))
 
         token = os.getenv("TOKEN")
@@ -52,21 +52,24 @@ def main(args: argparse.Namespace):
             )
         else:
             print("INFO: GitLab cloning not set.")
-        if args.projects_file:
-            try:
-                projects = parse_projects_file(args.projects_file)
-                parallel_clone_projects_from_url(projects, projects_dir_path)
-            except Exception:
-                print(f"ERROR: Could not read file {args.projects_file}.")
-        if args.templates_file:
-            try:
-                templates = parse_projects_file(args.templates_file)
-                parallel_clone_projects_from_url(templates, templates_dir_path)
-            except Exception:
-                print(f"ERROR: Could not read file {args.templates_file}.")
-        print(f"INFO: Cloning from Git repositories took {datetime.datetime.now() - start}")
+    if args.projects_file:
+        try:
+            projects = parse_projects_file(args.projects_file)
+            parallel_clone_projects_from_url(projects, projects_dir_path)
+        except Exception:
+            print(f"ERROR: Could not read file {args.projects_file}.")
+    if args.templates_file:
+        try:
+            templates = parse_projects_file(args.templates_file)
+            parallel_clone_projects_from_url(templates, templates_dir_path)
+        except Exception:
+            print(f"ERROR: Could not read file {args.templates_file}.")
+    print(f"INFO: Cloning from Git repositories took {datetime.datetime.now() - start}")
 
     after_cloning = datetime.datetime.now()
+    if args.clone_only:
+        print("INFO: Only cloning requested, stopping the program.")
+        return
     print("INFO: Loading projects to memory...")
     projects = parallel_initialize_projects(projects_dir_path, cpu_count=args.cpu)
     project_names = set(p.name for p in projects)
@@ -112,7 +115,9 @@ def main(args: argparse.Namespace):
             three_color=args.legacy_color,
             show_weight=args.weight,
         )
-        print(f"INFO: Creating Excel took {datetime.datetime.now() - after_comparison}.")
+        print(
+            f"INFO: Creating Excel took {datetime.datetime.now() - after_comparison}."
+        )
     else:
         print("WARNING: Nothing was compared.")
 
@@ -155,6 +160,13 @@ if __name__ == "__main__":
         action="store_true",
         default=False,
         help="Force offline mode even if env file is found.",
+    )
+    parser.add_argument(
+        "-co",
+        "--clone-only",
+        action="store_true",
+        default=False,
+        help="Stop the program after the cloning commands are finished.",
     )
     parser.add_argument(
         "-w",
