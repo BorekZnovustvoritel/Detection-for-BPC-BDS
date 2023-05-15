@@ -208,7 +208,7 @@ class ExcelHandler:
             heatmap.write_url(
                 row,
                 col,
-                f"internal:'{detail_name}'!A1:B2",
+                f"internal:'{detail_name}'!A1:A1",
                 string=f"{score}",
                 cell_format=self.get_format(score, borders),
             )
@@ -244,14 +244,18 @@ class ExcelHandler:
             no_of_templates,
             no_of_projects,
         )
-        self.create_detail_sheet(report, detail_name, show_weight)
+        self.create_detail_sheet(report, detail_name, heatmap.name, show_weight)
 
     def get_format(self, score: Optional[int], borders_str: str = ""):
         """Helper method to determine color for the calculated value."""
         return self._formatter.get_format(score, borders_str)
 
     def create_detail_sheet(
-        self, report: Report, sheet_name: str, show_weight: bool = False
+        self,
+        report: Report,
+        sheet_name: str,
+        parent_heatmap_name: str,
+        show_weight: bool = False,
     ):
         """Adds one sheet to the xlsx file. This sheet contains pairwise comparison result."""
         table_of_reports = self.report_tree_to_list_of_lists(report)
@@ -286,6 +290,13 @@ class ExcelHandler:
         sheet.write(0, table_width - 2, "Score", self.label_format)
         if show_weight:
             sheet.write(0, table_width - 1, "Weight", self.label_format)
+        sheet.write_url(
+            0,
+            0,
+            f"internal:'{parent_heatmap_name}'!A1:A1",
+            string="< Back",
+            cell_format=self.label_format,
+        )
         for col_idx in column_lengths.keys():
             sheet.set_column(col_idx, col_idx, column_lengths[col_idx])
 
