@@ -22,8 +22,8 @@ def determine_type_of_project(project_dir: Union[str, Path]) -> Optional[Type]:
 
 
 def create_project(
-    directory: Union[str, Path], template: bool
+    directory: Union[str, Path], template: bool, min_body_len
 ) -> Optional[AbstractProject]:
     proj_type = determine_type_of_project(directory)
     if proj_type:
-        return proj_type(directory, template)
+        return proj_type(directory, template, min_body_len=min_body_len)

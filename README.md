@@ -80,6 +80,7 @@ This tool is designed for the needs of subject BPC-BDS on FEEC BUT.
 - `-e` specifies the path to a different env file. Useful when the .env has been already set for automatic group creation.
 - `--token` specifies the token to access GitLab API. This overrides settings from the `.env` file.
 - `-g` specifies the GitLab group ID. This overrides settings from the `.env` file.
+- `-s` skips short methods and functions. This will mostly affect setters and getters.
 - `--debug` runs the application in debug mode. This is discouraged when comparing more than two projects, otherwise millions of lines of output can be produced.
 - `-w` adds weight (confidence) of each match to the detailed sheet. The bigger the number, the more elements participated in the match. High-scored parts with a low confidence can expose a false-positive match.
 - `-f` runs the application in fast scan mode. Entities that have too different lengths of attribute lists will be skipped entirely, which can lead to skipping comparisons of entire projects.

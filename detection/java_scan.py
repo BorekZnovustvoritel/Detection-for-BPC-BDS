@@ -335,7 +335,13 @@ class JavaMethod(ComparableEntity):
 class JavaClass(ComparableEntity):
     """Representation of classes from the source code."""
 
-    def __init__(self, java_class: javalang.tree.ClassDeclaration, java_file: JavaFile):
+    def __init__(
+        self,
+        java_class: javalang.tree.ClassDeclaration,
+        java_file: JavaFile,
+        *,
+        min_body_len=0,
+    ):
         """Parameter `java_class` requires appropriate AST subtree,
         `java_file` is reference to the parent `JavaFile` object."""
         super().__init__()
@@ -354,7 +360,8 @@ class JavaClass(ComparableEntity):
                     variable.modifiers = [JavaModifier(m) for m in field.modifiers]
                     self.variables.append(variable)
         for method in java_class.methods:
-            self.methods.append(JavaMethod(method, self))
+            if method.body and len(method.body) >= min_body_len:
+                self.methods.append(JavaMethod(method, self))
 
     def get_non_user_defined_types(
         self, skip: Optional[Set[JavaType]] = None
@@ -397,7 +404,9 @@ class JavaClass(ComparableEntity):
 class JavaFile(ComparableEntity):
     """Represents files that end with the '.java' extension."""
 
-    def __init__(self, path: Union[str, pathlib.Path], project: JavaProject):
+    def __init__(
+        self, path: Union[str, pathlib.Path], project: JavaProject, *, min_body_len=0
+    ):
         """Parameter `path` is path to the file,
         `project` is parent `Project` instance."""
         super().__init__()
@@ -418,7 +427,8 @@ class JavaFile(ComparableEntity):
         ]
         self.import_types: List[str] = [i.split(".")[-1] for i in self.imports]
         self.classes: List[JavaClass] = [
-            JavaClass(body, self) for body in compilation_unit.types
+            JavaClass(body, self, min_body_len=min_body_len)
+            for body in compilation_unit.types
         ]
         for cls in self.classes:
             self.project.user_types.update(
@@ -459,7 +469,9 @@ class JavaProject(AbstractProject):
     def size(self) -> int:
         return len(self.java_files)
 
-    def __init__(self, path: Union[str, pathlib.Path], template: bool):
+    def __init__(
+        self, path: Union[str, pathlib.Path], template: bool, *, min_body_len=0
+    ):
         """Parameter `path` is path to the project's root directory."""
         super().__init__("Java", template)
         self.path: pathlib.Path
@@ -477,7 +489,7 @@ class JavaProject(AbstractProject):
         java_files = get_java_files(self.path)
         for file in java_files:
             try:
-                self.java_files.append(JavaFile(file, self))
+                self.java_files.append(JavaFile(file, self, min_body_len=min_body_len))
             except ValueError:
                 continue
         for file in self.java_files:
@@ -535,7 +547,9 @@ class JavaProject(AbstractProject):
             )
         if len(found_classes) == 1:
             return found_classes[0]
-        print(f"WARNING: Java get_class: Cannot find {package}.{class_name} in {self.name}!")
+        print(
+            f"WARNING: Java get_class: Cannot find {package}.{class_name} in {self.name}!"
+        )
         return None
 
     def get_user_type(self, package: str, class_name: str) -> Optional[JavaType]:

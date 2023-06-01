@@ -232,6 +232,7 @@ def parallel_initialize_projects(
     template=False,
     skip_names: Iterable[str] = (),
     cpu_count: int = mp.cpu_count() - 1,
+    min_body_len=0,
 ) -> List[AbstractProject]:
     """Loads projects from files to memory, creates a list of `Project` objects.
     Parameter `projects_dir` is the directory from which the projects shall be loaded."""
@@ -240,7 +241,9 @@ def parallel_initialize_projects(
     if not projects_dir.is_dir():
         raise EnvironmentError("Project directory could not be found!")
     arg_list = [
-        (d, template) for d in projects_dir.iterdir() if d.name not in skip_names
+        (d, template, min_body_len)
+        for d in projects_dir.iterdir()
+        if d.name not in skip_names
     ]
     chunk_size = len(arg_list) // cpu_count
     if chunk_size == 0:

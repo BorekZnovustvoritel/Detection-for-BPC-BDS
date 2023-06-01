@@ -174,7 +174,9 @@ class PythonImport:
 class PythonClass(ComparableEntity):
     """Class representing Python classes."""
 
-    def __init__(self, python_class: ast.ClassDef, python_file: PythonFile):
+    def __init__(
+        self, python_class: ast.ClassDef, python_file: PythonFile, *, min_body_len=0
+    ):
         """Parameter `python_class` requires the AST object,
         `python_class` is a reference to the parent PythonFile."""
         super().__init__()
@@ -185,6 +187,7 @@ class PythonClass(ComparableEntity):
             PythonFunction(a, self.python_file, self)
             for a in python_class.body
             if isinstance(a, ast.AsyncFunctionDef) or isinstance(a, ast.FunctionDef)
+            if a.body and len(a.body) >= min_body_len
         ]
         self.statements: List[PythonStatementBlock] = [
             PythonStatementBlock(t, self)
@@ -213,7 +216,9 @@ class PythonClass(ComparableEntity):
 class PythonFile(ComparableEntity):
     """Class representing Python files."""
 
-    def __init__(self, path: Union[str, pathlib.Path], project: PythonProject):
+    def __init__(
+        self, path: Union[str, pathlib.Path], project: PythonProject, *, min_body_len=0
+    ):
         """Parameter `path` requires  path to the file in the filesystem,
         `project is a reference to the parent PythonProject.`"""
         super().__init__()
@@ -234,10 +239,13 @@ class PythonFile(ComparableEntity):
         self.functions: List[PythonFunction] = [
             PythonFunction(a, self)
             for a in _body
-            if isinstance(a, ast.AsyncFunctionDef) or isinstance(a, ast.FunctionDef)
+            if (isinstance(a, ast.AsyncFunctionDef) or isinstance(a, ast.FunctionDef))
+            and len(a.body) >= min_body_len
         ]
         self.classes: List[PythonClass] = [
-            PythonClass(a, self) for a in _body if isinstance(a, ast.ClassDef)
+            PythonClass(a, self, min_body_len=min_body_len)
+            for a in _body
+            if isinstance(a, ast.ClassDef)
         ]
         self.statement_blocks: List[PythonStatementBlock] = [
             PythonStatementBlock(t, self)
@@ -303,7 +311,9 @@ class PythonFile(ComparableEntity):
 class PythonProject(AbstractProject):
     """Class representing the Python Projects."""
 
-    def __init__(self, path: Union[str, pathlib.Path], template: bool):
+    def __init__(
+        self, path: Union[str, pathlib.Path], template: bool, *, min_body_len=0
+    ):
         """Parameter `path` requires the root directory of the project,
         `template` is a boolean value stating whether the project should be categorized as a template."""
         super().__init__("Python", template)
@@ -317,7 +327,8 @@ class PythonProject(AbstractProject):
         self.name = self.path.name
         self.visualise = True
         self.python_files: List[PythonFile] = [
-            PythonFile(p, self) for p in utils.get_python_files(self.path)
+            PythonFile(p, self, min_body_len=min_body_len)
+            for p in utils.get_python_files(self.path)
         ]
         self.__all_statements = []
         for p_file in self.python_files:

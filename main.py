@@ -71,7 +71,10 @@ def main(args: argparse.Namespace):
         print("INFO: Only cloning requested, stopping the program.")
         return
     print("INFO: Loading projects to memory...")
-    projects = parallel_initialize_projects(projects_dir_path, cpu_count=args.cpu)
+    min_body_len = 2 if args.skip_setters_getters else 0
+    projects = parallel_initialize_projects(
+        projects_dir_path, cpu_count=args.cpu, min_body_len=min_body_len
+    )
     project_names = set(p.name for p in projects)
     projects.extend(
         parallel_initialize_projects(
@@ -79,6 +82,7 @@ def main(args: argparse.Namespace):
             template=True,
             skip_names=project_names,
             cpu_count=args.cpu,
+            min_body_len=min_body_len,
         )
     )
     after_parsing = datetime.datetime.now()
@@ -167,6 +171,13 @@ if __name__ == "__main__":
         action="store_true",
         default=False,
         help="Stop the program after the cloning commands are finished.",
+    )
+    parser.add_argument(
+        "-s",
+        "--skip-setters-getters",
+        help="Skip short methods (mainly setters and getters).",
+        action="store_true",
+        default=False,
     )
     parser.add_argument(
         "-w",
