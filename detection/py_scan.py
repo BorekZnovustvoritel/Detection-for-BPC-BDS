@@ -26,7 +26,8 @@ class PythonFunction(ComparableEntity):
     ):
         """Parameter `python_function` requires appropriate AST subtree,
         `python_file` is a reference to the parent file,
-        `python_class` is a reference to a parent class if the object represents a method."""
+        `python_class` is a reference to a parent class if the object represents a method.
+        """
         super().__init__()
         self.name = python_function.name
         self.visualise = True
@@ -109,7 +110,9 @@ class PythonStatementBlock(AbstractStatementBlock):
         ]
         self.parent = parent
         self.parent_file = (
-            parent.python_file if isinstance(parent, PythonFunction) else parent
+            parent.python_file
+            if isinstance(parent, PythonFunction) or isinstance(parent, PythonClass)
+            else parent
         )
 
     @cached_property
@@ -262,7 +265,8 @@ class PythonFile(ComparableEntity):
     ) -> Optional[PythonFunction]:
         """Get function object from the context of the file where the function is called.
         Parameter `function_name` is the name of the searched-for function,
-        `qualifier` is the dotted identifier before the function or method (`re` in `re.match()`)"""
+        `qualifier` is the dotted identifier before the function or method (`re` in `re.match()`)
+        """
         if not qualifier:
             ans = list(
                 filter(
@@ -274,7 +278,9 @@ class PythonFile(ComparableEntity):
             for imp in self.imports:
                 if function_name in imp.imported_objects_str:
                     mod = self.project.get_module(imp.modules_str[0])
-                    if mod:
+                    if mod == self:  # Infinite recursion prevention
+                        return None
+                    elif mod:
                         return mod.get_function(function_name)
                     return None
         for imp in self.imports:
@@ -315,7 +321,8 @@ class PythonProject(AbstractProject):
         self, path: Union[str, pathlib.Path], template: bool, *, min_body_len=0
     ):
         """Parameter `path` requires the root directory of the project,
-        `template` is a boolean value stating whether the project should be categorized as a template."""
+        `template` is a boolean value stating whether the project should be categorized as a template.
+        """
         super().__init__("Python", template)
         self.path: pathlib.Path
         if not isinstance(path, pathlib.Path):
